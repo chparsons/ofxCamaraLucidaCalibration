@@ -1,0 +1,5 @@
+addons
+ofxOpenCv
+ofxCv
+ofxKinect
+ofxCamaraLucidaCalibration
