@@ -96,8 +96,11 @@ namespace cml
 
       void render()
       {
-        drawHighlightString("movement "+name0+": " + ofToString(diffMean0), 0, 20, cyanPrint);
-        drawHighlightString("movement "+name1+": " + ofToString(diffMean1), w, 20, cyanPrint);
+        //drawHighlightString("movement "+name0+": " + ofToString(diffMean0), 0, 20, cyanPrint);
+        ofDrawBitmapStringHighlight("movement "+name0+": " + ofToString(diffMean0), 0, 20, ofColor::cyan, ofColor::white);
+        
+        //drawHighlightString("movement "+name1+": " + ofToString(diffMean1), w, 20, cyanPrint);
+        ofDrawBitmapStringHighlight("movement "+name1+": " + ofToString(diffMean1), w, 20, ofColor::cyan, ofColor::white);
 
         debug_calib(calib0, name0, 0);
         debug_calib(calib1, name1, w);
@@ -108,7 +111,6 @@ namespace cml
         undistorted0.draw( 0, h );
         undistorted1.draw( w, h );
 
-        //drawHighlightString("press: spacebar to capture / s to save / r to reset", 10, ofGetHeight()-30, magentaPrint);
       };
 
       void save_intrinsics( string name, string format = "" )
@@ -257,18 +259,22 @@ namespace cml
 
       void debug_calib( ofxCv::Calibration& calibration, string name, int x )
       {
-        drawHighlightString(name, x, 40, yellowPrint, ofColor(0));
+        //drawHighlightString(name, x, 40, yellowPrint, ofColor(0));
+        ofDrawBitmapStringHighlight( name, x, 40, ofColor::yellow, ofColor::black );
 
         stringstream intrinsics;
         intrinsics << "fov: " << toOf(calibration.getDistortedIntrinsics().getFov()) << " distCoeffs: " << calibration.getDistCoeffs();
 
-        drawHighlightString(intrinsics.str(), x, 60, yellowPrint, ofColor(0));
+        //drawHighlightString(intrinsics.str(), x, 60, yellowPrint, ofColor(0));
+        ofDrawBitmapStringHighlight( intrinsics.str(), x, 60, ofColor::yellow, ofColor::black );
 
-        drawHighlightString("reproj error: " + ofToString(calibration.getReprojectionError()) + " from " + ofToString(calibration.size()), x, 80, magentaPrint);
+        //drawHighlightString("reproj error: " + ofToString(calibration.getReprojectionError()) + " from " + ofToString(calibration.size()), x, 80, magentaPrint);
+        ofDrawBitmapStringHighlight( "reproj error: " + ofToString(calibration.getReprojectionError()) + " from " + ofToString(calibration.size()), x, 80, ofColor::magenta, ofColor::white );
 
         for ( int i = 0; i < calibration.size(); i++ )
         {
-          drawHighlightString(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, 100 + 16 * i, magentaPrint);
+          //drawHighlightString(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, 100 + 16 * i, magentaPrint);
+          ofDrawBitmapStringHighlight(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, 100 + 16 * i, ofColor::magenta, ofColor::white);
         }
       }; 
 
