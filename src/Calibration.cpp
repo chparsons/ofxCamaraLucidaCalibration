@@ -9,14 +9,14 @@ namespace cml
 
   Calibration::Calibration()
   {
-    capture = false;
+    _capture = false;
   };
 
   Calibration::~Calibration(){}; 
 
   void Calibration::toggle_capture()
   {
-    capture = !capture;
+    _capture = !_capture;
   };
 
   //protected: 
@@ -56,21 +56,17 @@ namespace cml
 
   void Calibration::debug_calib( ofxCv::Calibration& calibration, string name, int x, int y )
   {
-    //drawHighlightString(name, x, 40, yellowPrint, ofColor(0));
     ofDrawBitmapStringHighlight( name, x, y+40, ofColor::yellow, ofColor::black );
 
     stringstream intrinsics;
     intrinsics << "fov: " << toOf(calibration.getDistortedIntrinsics().getFov()) << " distCoeffs: " << calibration.getDistCoeffs();
 
-    //drawHighlightString(intrinsics.str(), x, 60, yellowPrint, ofColor(0));
     ofDrawBitmapStringHighlight( intrinsics.str(), x, y+60, ofColor::yellow, ofColor::black );
 
-    //drawHighlightString("reproj error: " + ofToString(calibration.getReprojectionError()) + " from " + ofToString(calibration.size()), x, 80, magentaPrint);
     ofDrawBitmapStringHighlight( "reproj error: " + ofToString(calibration.getReprojectionError()) + " from " + ofToString(calibration.size()), x, y+80, ofColor::magenta, ofColor::white );
 
     for ( int i = 0; i < calibration.size(); i++ )
     {
-      //drawHighlightString(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, 100 + 16 * i, magentaPrint);
       ofDrawBitmapStringHighlight(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, y+100 + 16 * i, ofColor::magenta, ofColor::white);
     }
   }; 

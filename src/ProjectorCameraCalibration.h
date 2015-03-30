@@ -18,6 +18,7 @@ namespace cml
 
       void init( ofPixels& pix, string cam_calib_filename, string cam_name = "camera", string proj_name = "projector" );
       void update( ofPixels& pix ); 
+      bool capture( ofPixels& pix );
       void calibrate();
       void render();
 
@@ -60,46 +61,53 @@ namespace cml
           vector< vector<cv::Point2f> >& projector_pattern, 
           vector< vector<cv::Point2f> >& projected_points );
 
-      void find_homographies( 
-          vector<cv::Point2f>& printed_points, 
-          vector<cv::Point2f>& printed_pattern, 
-          vector<cv::Mat1d>& homographies );
-
-      void projected_points_on_board( 
-          vector< vector<cv::Point2f> >& projected_points, 
-          vector< cv::Mat1d >& homographies, 
-          vector< vector<cv::Point3f> >& projected_points3d_on_board );
-
-      bool find_printed_points( 
-          vector<cv::Point2f>& printed_points );
-
-      bool find_projected_points( 
-          vector< vector<cv::Point2f> >& projected_points );
-
       void make_printed_pattern( 
           vector<cv::Point2f>& printed_pattern );
 
       void make_projector_pattern( 
-          vector< vector<cv::Point2f> >& projector_pattern ); 
+          vector< vector<cv::Point2f> >& projector_pattern );
 
-      bool find_printed_chessboards(
+      void find_homographies( 
+          vector< vector<cv::Point2f> >& printed_points,
+          vector<cv::Mat1d>& homographies ); 
+
+      void find_printed_points( 
+          vector< vector<cv::Point2f> >& printed_points );
+
+      void find_printed_chessboards(
           const cv::Mat& img, 
           vector<cv::Point2f>& corners);
 
-      void find_chessboard_roi(
+      void find_projected_points( 
+          vector< vector<cv::Point2f> >& projected_points );
+
+      void projected_points_on_board( 
+          vector< vector<cv::Point2f> >& projected_points, 
+          vector< cv::Mat1d >& homographies, 
+          vector< vector<cv::Point3f> >& projected_points3d_on_board ); 
+
+      void find_chessboards(
+          const cv::Mat& img, 
+          vector<cv::Point2f>& corners,
+          bool add_printed_corners = true,
+          bool add_projector_corners = true,
+          int x = -1, int y = -1 ); 
+
+      bool find_chessboard_roi(
           int width, int height, 
           cv::Mat& frame, 
+          cv::Mat& dst_image,
           vector<cv::Point2f>& corners );
-
 
       //functions from 
       //https://github.com/rgbdemo/nestk/blob/master/ntk/camera/calibration.h
 
-      //chessboard pattern only
+      //chessboard pattern type only
       void find_chessboard_corners(
           int pattern_width, int pattern_height,
-          vector<Point2f>& corners,
-          const cv::Mat& image,
+          vector<cv::Point2f>& corners,
+          const cv::Mat& src_image,
+          cv::Mat& dst_image,
           float scale_factor); 
 
       void make_pattern(

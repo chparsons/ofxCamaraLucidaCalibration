@@ -28,7 +28,7 @@ namespace cml
 
     protected: 
 
-      bool capture;
+      bool _capture;
       float curTime, lastTime;
       float diffThreshold; // maximum amount of movement
       float timeThreshold; // minimum time between snapshots
@@ -44,6 +44,13 @@ namespace cml
       void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format = "ofxcv" ); 
 
       //cv::FileStorage load_settings();
+
+      void render_mat( cv::Mat& img, int x, int y )
+      {
+        ofImage _img;
+        ofxCv::toOf( img, _img );
+        _img.draw(x,y);
+      };
 
       bool flt_eq(float lhs, float rhs, float epsilon = std::numeric_limits<float>::epsilon())
       {

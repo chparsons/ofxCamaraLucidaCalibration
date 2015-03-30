@@ -24,7 +24,7 @@ namespace cml
         diffThreshold = 6.; //2.5;
         timeThreshold = 1;
         //startCleaning = 10;
-        capture = false;
+        _capture = false;
         lastTime = 0;
 
         w = pix0.getWidth();
@@ -47,7 +47,7 @@ namespace cml
       {
         curTime = ofGetElapsedTimef(); 
 
-        if ( !capture || curTime - lastTime < timeThreshold )
+        if ( !_capture || curTime - lastTime < timeThreshold )
           return;
 
         bool _updated0 = update_cam( camMat0, pix0, previous0, diff0, &diffMean0 );
