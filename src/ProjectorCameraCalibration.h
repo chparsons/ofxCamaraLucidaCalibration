@@ -20,7 +20,8 @@ namespace cml
       void update( ofPixels& pix ); 
       bool capture( ofPixels& pix );
       void calibrate();
-      void render();
+      void render( int x = 0, int y = 0 );
+      void render_chessboard( int x = ofGetScreenWidth(), int y = 0, int brightness = 255 );
 
       void save_all( string folder );
       void reset();
@@ -31,6 +32,7 @@ namespace cml
 
       string cam_name, proj_name;
       ofxCv::Calibration calib_cam, calib_proj;
+      ofxCv::Intrinsics proj_distorted_intrinsics;
 
       //settings
       cml::Calibration::Config cfg_proj;
@@ -40,6 +42,8 @@ namespace cml
       float offset_x_3x6, offset_y_3x6;
 
       vector<ofImage> imgs;
+
+      //calib output
       cv::Mat1d R, T;
       cv::Mat1d proj_intrinsics;
       cv::Mat1d proj_distortion;

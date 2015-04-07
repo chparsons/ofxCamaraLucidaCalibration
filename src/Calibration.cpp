@@ -85,10 +85,14 @@ namespace cml
     cv::FileStorage fs( ofToDataPath(filename, absolute), cv::FileStorage::WRITE );
 
     const ofxCv::Intrinsics& distorted_intrinsics = calibration.getDistortedIntrinsics();
-
     cv::Size imageSize = distorted_intrinsics.getImageSize();
     cv::Size sensorSize = distorted_intrinsics.getSensorSize();
     cv::Mat cameraMatrix = distorted_intrinsics.getCameraMatrix();
+
+    const ofxCv::Intrinsics& undistorted_intrinsics = calibration.getUndistortedIntrinsics();
+    cv::Size undistorted_imageSize = undistorted_intrinsics.getImageSize();
+    cv::Size undistorted_sensorSize = undistorted_intrinsics.getSensorSize();
+    cv::Mat undistorted_cameraMatrix = undistorted_intrinsics.getCameraMatrix();
 
     if (format == "aruco")
     {
@@ -99,6 +103,13 @@ namespace cml
       fs << "sensor_height" << sensorSize.height;
       fs << "distortion_coefficients" << calibration.getDistCoeffs();
       fs << "reprojection_error" << calibration.getReprojectionError();
+
+      //let's add the undistorted intrinsics
+      fs << "undistorted_camera_matrix" << undistorted_cameraMatrix;
+      fs << "undistorted_image_width" << undistorted_imageSize.width;
+      fs << "undistorted_image_height" << undistorted_imageSize.height;
+      fs << "undistorted_sensor_width" << undistorted_sensorSize.width;
+      fs << "undistorted_sensor_height" << undistorted_sensorSize.height;
     }
 
     else if (format == "ofxcv")
@@ -110,6 +121,13 @@ namespace cml
       fs << "sensorSize_height" << sensorSize.height;
       fs << "distCoeffs" << calibration.getDistCoeffs();
       fs << "reprojectionError" << calibration.getReprojectionError();
+
+      //let's add the undistorted intrinsics
+      fs << "undistorted_cameraMatrix" << undistorted_cameraMatrix;
+      fs << "undistorted_imageSize_width" << undistorted_imageSize.width;
+      fs << "undistorted_imageSize_height" << undistorted_imageSize.height;
+      fs << "undistorted_sensorSize_width" << undistorted_sensorSize.width;
+      fs << "undistorted_sensorSize_height" << undistorted_sensorSize.height;
     }
 
     ofLogNotice("cml::Calibration") << "save intrinsics calib to file " << filename << ", format: " << format;

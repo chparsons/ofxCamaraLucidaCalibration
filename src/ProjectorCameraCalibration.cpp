@@ -130,17 +130,44 @@ namespace cml
 
   };
 
-  void ProjectorCameraCalibration::render()
+  void ProjectorCameraCalibration::render( int x, int y )
   {
-    ofDrawBitmapStringHighlight("movement: " + ofToString(diffMean), 0, 20, ofColor::cyan, ofColor::white);
+    ofDrawBitmapStringHighlight("movement: " + ofToString(diffMean), x, y+20, ofColor::cyan, ofColor::white);
 
-    debug_calib(calib_cam, cam_name, 0, 0 );
-    debug_calib(calib_proj, proj_name, 0, h );
+    debug_calib(calib_cam, cam_name, x, y );
+    debug_calib(calib_proj, proj_name, x, y+h );
 
     //render_calib(calib_cam, 0);
 
     if (imgs.size() > 0)
       imgs[imgs.size()-1].draw( 0, h );
+  };
+
+  void ProjectorCameraCalibration::render_chessboard( int _x, int _y, int brightness )
+  {
+
+    int w = cfg_proj.image_size.width;
+    int h = cfg_proj.image_size.height;
+
+    ofPushStyle();
+    ofSetColor( brightness );
+    ofRect( _x, _y, w, h );
+
+    ofSetColor(0);
+    int ps = cfg_proj.pattern_square_size_pixels;
+    int xoff = _x + (cfg_proj.image_size.width/2 - (((cfg_proj.pattern_width+1)*ps)/2));
+    int yoff = _y + (cfg_proj.image_size.height/2 - (((cfg_proj.pattern_height+1)*ps)/2));
+
+    for ( int y = 0; y <= cfg_proj.pattern_height; y++ ) 
+    {
+      for ( int x = 0; x <= cfg_proj.pattern_width; x++ ) 
+      {
+        //cout << "sq " << x << "," << y << " / " << ((x+y)%2) << endl;
+        if ( (x+y)%2 == 0 ) continue;
+        ofRect( xoff + x*ps, yoff + y*ps, ps, ps );
+      }
+    }
+    ofPopStyle();
   };
 
   void ProjectorCameraCalibration::save_all( string folder )
@@ -226,9 +253,9 @@ namespace cml
       << "\n error int: \n"
       << error;
 
-    //TODO update calib_proj from
-    //proj_intrinsics
-    //proj_distortion
+    //update calib_proj from: proj_intrinsics, proj_distortion
+    proj_distorted_intrinsics.setup( proj_intrinsics, cfg_proj.image_size );
+    calib_proj.setIntrinsics( proj_distorted_intrinsics, proj_distortion );
   };
 
   void ProjectorCameraCalibration::calibrate_projector_camera( 
