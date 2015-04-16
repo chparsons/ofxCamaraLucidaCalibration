@@ -14,12 +14,15 @@ namespace cml
 
   void ProjectorCameraCalibration::init( 
       ofPixels& pix, 
-      string cam_calib_filename, 
+      string cam_calib_file, 
+      string pattern_settings_file,
       string cam_name, 
       string proj_name )
   {
     this->cam_name = cam_name;
     this->proj_name = proj_name;
+    this->cam_calib_file = cam_calib_file;
+    this->pattern_settings_file = pattern_settings_file;
 
     diffThreshold = 6.; //2.5;
     timeThreshold = 2;
@@ -27,18 +30,19 @@ namespace cml
 
     _capture = false;
 
-    w = pix.getWidth();
-    h = pix.getHeight();
+    width = pix.getWidth();
+    height = pix.getHeight();
     chan = pix.getNumChannels();
 
-    load_settings(); //TODO load from settings.yml
+    if ( !load_settings( pattern_settings_file ) )
+      return;
 
     init_calib( calib_proj, cfg_proj );
 
     bool absolute = false;
-    calib_cam.load( cam_calib_filename, absolute );
+    calib_cam.load( cam_calib_file, absolute );
 
-    allocate( pix ); 
+    //allocate( pix ); 
   };
 
   void ProjectorCameraCalibration::update( ofPixels& pix )
@@ -55,24 +59,22 @@ namespace cml
   {
     ofLogNotice("cml::ProjectorCameraCalibration") << "capturing image...";
 
-    if ( !update_cam( camMat, pix, previous, diff, &diffMean ) )
-      return false;
+    //if ( !update_cam( camMat, pix, previous, diff, &diffMean ) )
+    //{
+      //ofLogNotice("cml::ProjectorCameraCalibration") << "capture failed, diffMean=" << diffMean;
+      //return false;
+    //}
 
     ofImage undistorted;
     ofxCv::imitate(undistorted, pix);
     calib_cam.undistort( toCv(pix), toCv(undistorted) );
 
     //check all chessboards are found on captured image
-    vector<cv::Point2f> points;
-    find_chessboards( toCv(undistorted), points, true, true, 0, h );
-    if ( points.size() == 0 ) 
-    {
-      ofLogWarning("cml::ProjectorCameraCalibration") << "\t capture: chessboard patterns not found on image";
-      return false;
-    }
+    if ( !update_captured_points(undistorted) )
+      return;
 
-    //TODO save to disk?
     imgs.push_back( undistorted );
+
     ofLogNotice("cml::ProjectorCameraCalibration") << "\t capture done";
 
     return true;
@@ -97,30 +99,29 @@ namespace cml
     //(i.e. 2d points projected onto the image plane)
     make_projector_pattern( projector_pattern ); 
 
-    find_printed_points( printed_points );
+    if ( !find_printed_points( printed_points ) )
+      return;
 
     //find homography btw:
     //--printed points on undistorted camera
     //--printed pattern points
-    find_homographies( printed_points, homographies );
+    if ( !find_homographies( printed_points, homographies ) )
+      return;
 
     //find projector pattern points on camera
-    find_projected_points( projected_points );
-
-    if ( homographies.size() != projected_points.size() )
-    {
-      ofLogError("cml::ProjectorCameraCalibration") << "error: homographies.size() = " << homographies.size() << " and projected_points.size() = " << projected_points.size() << " should be equal";
+    if ( !find_projected_points( projected_points ) )
       return;
-    }
 
     //transform projector pattern points on camera to lie on the board plane => perspective transform using homography
     //make 3d projector points on the board plane: flip Y and add Z
-    projected_points_on_board( projected_points, homographies, projected_points3d_on_board );
+    if ( !projected_points_on_board( projected_points, homographies, projected_points3d_on_board ) )
+      return;
 
     //calibrate projector intrinsics with: 
     //--projector pattern points on board from camera view
     //--projector pattern points
-    calibrate_projector_intrinsics( projected_points3d_on_board, projector_pattern );
+    if ( !calibrate_projector_intrinsics( projected_points3d_on_board, projector_pattern ) )
+      return;
 
     //stereo calibrate with:
     //--projector pattern points on board from camera view 
@@ -132,15 +133,20 @@ namespace cml
 
   void ProjectorCameraCalibration::render( int x, int y )
   {
-    ofDrawBitmapStringHighlight("movement: " + ofToString(diffMean), x, y+20, ofColor::cyan, ofColor::white);
-
-    debug_calib(calib_cam, cam_name, x, y );
-    debug_calib(calib_proj, proj_name, x, y+h );
+    ofDrawBitmapStringHighlight("movement: " /*+ ofToString(diffMean)*/, x, y+20, ofColor::cyan, ofColor::white);
 
     //render_calib(calib_cam, 0);
 
+    float scale = 0.5;
+
     if (imgs.size() > 0)
-      imgs[imgs.size()-1].draw( 0, h );
+      imgs[imgs.size()-1].draw( 0, height, width * scale, height * scale );
+
+    render_points( captured_printed_points, 0, height, scale, 2. );
+    render_points( captured_projected_points, 0, height, scale, 2. );
+
+    debug_calib(calib_cam, cam_name, x, y );
+    debug_calib(calib_proj, proj_name, x, y+height );
   };
 
   void ProjectorCameraCalibration::render_chessboard( int _x, int _y, int brightness )
@@ -162,19 +168,49 @@ namespace cml
     {
       for ( int x = 0; x <= cfg_proj.pattern_width; x++ ) 
       {
-        //cout << "sq " << x << "," << y << " / " << ((x+y)%2) << endl;
         if ( (x+y)%2 == 0 ) continue;
         ofRect( xoff + x*ps, yoff + y*ps, ps, ps );
       }
     }
     ofPopStyle();
-  };
+  }; 
 
   void ProjectorCameraCalibration::save_all( string folder )
   {
     //cml::Calibration::save_intrinsics( calib_cam, cam_name ); //already calibrated
     cml::Calibration::save_intrinsics( calib_proj, proj_name, folder );
     save_stereo_RT( folder );
+  };
+
+  void ProjectorCameraCalibration::save_images( string folder )
+  {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "save " << imgs.size() << " images into " << folder;
+    ofDirectory::removeDirectory( folder, true, true );
+    for ( int i = 0; i < imgs.size(); i++ )
+      imgs[i].saveImage( folder + "/" + proj_name + "_" + cam_name + "_" + ofToString(i) + ".jpg" );
+  };
+
+  void ProjectorCameraCalibration::load_images( string folder )
+  {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "load images from " << folder;
+
+    ofDirectory dir;
+    dir.listDir( folder );
+    dir.sort();
+
+    if ( dir.size() == 0 )
+    {
+      ofLogWarning("ProjectorCameraCalibration") << "load_images: could not find any images on " << folder; 
+      return;
+    }
+
+    imgs.clear();
+    imgs.assign( dir.size(), ofImage() );
+    for ( int i = 0; i < (int)dir.size(); i++ )
+    {
+      imgs[i].loadImage( dir.getPath(i) );
+      update_captured_points( imgs[i] );
+    }
   };
 
   void ProjectorCameraCalibration::reset()
@@ -185,34 +221,89 @@ namespace cml
 
   //private: 
 
-  void ProjectorCameraCalibration::allocate( ofPixels& pix )
+  //void ProjectorCameraCalibration::allocate( ofPixels& pix )
+  //{
+    //ofxCv::imitate(previous, pix);
+    //ofxCv::imitate(diff, pix);
+  //};
+
+  bool ProjectorCameraCalibration::update_captured_points( ofImage& img )
   {
-    ofxCv::imitate(previous, pix);
-    ofxCv::imitate(diff, pix);
+    captured_printed_points.clear();
+    find_printed_chessboards( toCv(img), captured_printed_points );
+    if ( captured_printed_points.size() == 0 ) 
+    {
+      ofLogWarning("cml::ProjectorCameraCalibration") << "\t update_captured_points: printed chessboard pattern not found on image";
+      return false;
+    }
+
+    captured_projected_points.clear();
+    find_projected_chessboards( toCv(img), captured_projected_points );
+    if ( captured_projected_points.size() == 0 ) 
+    {
+      ofLogWarning("cml::ProjectorCameraCalibration") << "\t update_captured_points: projected chessboard pattern not found on image";
+      return false;
+    }
+
+    return true;
   };
 
-  //TODO load from settings.yml
-  void ProjectorCameraCalibration::load_settings()
+  bool ProjectorCameraCalibration::load_settings( string pattern_settings_file )
   {
-    cfg_proj.image_size = cv::Size(1024, 768);
-    cfg_proj.pattern_width = 7;
-    cfg_proj.pattern_height = 10;
-    cfg_proj.pattern_square_size = 0.04;
-    cfg_proj.pattern_square_size_pixels = 40;
+    cv::FileStorage settings( ofToDataPath(pattern_settings_file), cv::FileStorage::READ );
+
+    if ( !settings.isOpened() )
+    {
+      ofLogError() << "could not open projector pattern settings file: " << ofToDataPath(pattern_settings_file);
+      return false;
+    }
+
+    cfg_proj.image_size = cv::Size( settings["image_width"], settings["image_height"] );
+    cfg_proj.pattern_width = settings["pattern_width"];
+    cfg_proj.pattern_height = settings["pattern_height"];
+    cfg_proj.pattern_square_size = settings["pattern_square_size"];
+    cfg_proj.pattern_square_size_pixels = settings["pattern_square_size_pixels"];
 
     //xy positions in meters of each 3xN printed patterns
-    offset_x_3x3 = 0.66;
-    offset_y_3x3 = 0.;
-    offset_x_3x4 = 0.;
-    offset_y_3x4 = 0.;
-    offset_x_3x5 = 0.;
-    offset_y_3x5 = 0.33;
-    offset_x_3x6 = 0.66;
-    offset_y_3x6 = 0.29;
+    offset_x_3x3 = settings["offset_x_3x3"];
+    offset_y_3x3 = settings["offset_y_3x3"];
+
+    offset_x_3x4 = settings["offset_x_3x4"];
+    offset_y_3x4 = settings["offset_y_3x4"];
+
+    offset_x_3x5 = settings["offset_x_3x5"];
+    offset_y_3x5 = settings["offset_y_3x5"];
+
+    offset_x_3x6 = settings["offset_x_3x6"];
+    offset_y_3x6 = settings["offset_y_3x6"];
+
+    return true;
+  };
+
+  string ProjectorCameraCalibration::log_config()
+  {
+    return "width: " + ofToString(proj_size().width) 
+      + "\n"
+      + "height: " + ofToString(proj_size().height)
+      + "\n"
+      + "cam_calib_file: " + cam_calib_file
+      + "\n"
+      + "pattern_settings_file: " + pattern_settings_file
+      + "\n"
+      + "cam_name: " + cam_name
+      + "\n"
+      + "proj_name: " + proj_name
+      + "\n";
   };
 
   void ProjectorCameraCalibration::save_stereo_RT( string folder )
   {
+    if ( ! calib_proj.isReady() )
+    {
+      ofLogError("cml::ProjectorCameraCalibration") << "save_stereo_RT failed, projector calibration isn't ready yet!";
+      return;
+    }
+
     string src_name = proj_name;
     string dst_name = cam_name;
 
@@ -229,10 +320,34 @@ namespace cml
 
   //calibration
 
-  void ProjectorCameraCalibration::calibrate_projector_intrinsics( 
+  bool ProjectorCameraCalibration::calibrate_projector_intrinsics( 
       vector< vector<cv::Point3f> >& projected_points3d_on_board, 
       vector< vector<cv::Point2f> >& projector_pattern )
   {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "calibrate_projector_intrinsics";
+
+    //check sizes...
+
+    if ( projected_points3d_on_board.size() != projector_pattern.size() )
+    {
+      ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "calibrate_projector_intrinsics: projected_points3d_on_board.size (" << projected_points3d_on_board.size() << ") != projector_pattern.size (" << projector_pattern.size() << ")";
+      return false;
+    }
+
+    int nimgs = imgs.size();
+    for ( int i = 0; i < nimgs; i++ )
+    {
+      int npts_3d = projected_points3d_on_board[i].size();
+      int npts_pattern = projector_pattern[i].size();
+      if ( npts_3d != npts_pattern )
+      {
+        ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "calibrate_projector_intrinsics: image (" << ofToString(i) << "): projected_points3d_on_board["<<ofToString(i)<<"].size (" << npts_3d << ") != projector_pattern["<<ofToString(i)<<"].size (" << npts_pattern << ")";
+        return false;
+      }
+    }
+
+    //go...
+
     int flags = CV_CALIB_ZERO_TANGENT_DIST + CV_CALIB_FIX_K1 + CV_CALIB_FIX_K2 + CV_CALIB_FIX_K3;
     vector<cv::Mat> rvecs, tvecs;
 
@@ -245,7 +360,7 @@ namespace cml
         proj_distortion,
         rvecs, tvecs, flags);
 
-    ofLogNotice("ProjectorCameraCalibration") << "calibrate projector intrinsics:" 
+    ofLogNotice("cml::ProjectorCameraCalibration") << "calibrate projector intrinsics:" 
       << "\n projector intrinsics: \n"
       << proj_intrinsics
       << "\n projector distortion: \n"
@@ -256,6 +371,8 @@ namespace cml
     //update calib_proj from: proj_intrinsics, proj_distortion
     proj_distorted_intrinsics.setup( proj_intrinsics, cfg_proj.image_size );
     calib_proj.setIntrinsics( proj_distorted_intrinsics, proj_distortion );
+
+    return true;
   };
 
   void ProjectorCameraCalibration::calibrate_projector_camera( 
@@ -263,33 +380,40 @@ namespace cml
       vector< vector<cv::Point2f> >& projector_pattern, 
       vector< vector<cv::Point2f> >& projected_points )
   {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "calibrate_projector_camera";
 
-    cv::Mat E(3,3,CV_64F), F(3,3,CV_64F);
-    cv::Mat zero_dist (proj_distortion.size(), proj_distortion.type());
-    zero_dist = cv::Scalar(0);
+    cv::Mat E(3,3,CV_64F), F(3,3,CV_64F); 
 
     //const ofxCv::Intrinsics& 
     cv::Mat cam_distorted_intrinsics = calib_cam.getDistortedIntrinsics().getCameraMatrix();
+    cv::Mat cam_distortion = calib_cam.getDistCoeffs();
+
+    //cv::Mat cam_undistorted_intrinsics = calib_cam.getUndistortedIntrinsics().getCameraMatrix();
+    //cv::Mat zero_dist (proj_distortion.size(), proj_distortion.type());
+    //zero_dist = cv::Scalar(0);
 
     cv::stereoCalibrate(
         projected_points3d_on_board,
         projector_pattern, //i.e. projector pattern projected onto the projector image plane
         projected_points, //i.e. projector pattern projected onto the camera image plane
-        //from proj intrinsics calib
+        //data from proj intrinsics calib
         proj_intrinsics, 
         proj_distortion,
-        //from cam intrinsics loaded
+        //data from cam intrinsics loaded
         cam_distorted_intrinsics, 
-        zero_dist, //calib_cam.getDistCoeffs() ???
+        cam_distortion,
+        //cam_undistorted_intrinsics, 
+        //zero_dist, 
+        //size
         cfg_proj.image_size,
         //output
         R, T, E, F,
         cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 50, 1e-6),
-        cv::CALIB_FIX_INTRINSIC);
+        cv::CALIB_FIX_INTRINSIC );
 
     double error = computeCalibrationError(F, projector_pattern, projected_points);
 
-    ofLogNotice("ProjectorCameraCalibration") << "calibrate projector camera:" 
+    ofLogNotice("cml::ProjectorCameraCalibration") << "calibrate projector camera:" 
       << "\n average pixel reprojection error: " << error
       << "\n R: \n" << R
       << "\n T: \n" << T;
@@ -298,34 +422,54 @@ namespace cml
     //R = rgb_R * R;
   };
 
-  void ProjectorCameraCalibration::find_homographies( 
+  bool ProjectorCameraCalibration::find_homographies( 
       vector< vector<cv::Point2f> >& printed_points,
       vector<cv::Mat1d>& homographies )
   {
-    if ( printed_points.size() != imgs.size() )
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "find_homographies";
+
+    int nimgs = imgs.size();
+
+    if ( printed_points.size() != nimgs )
     {
       ofLogWarning("cml::ProjectorCameraCalibration") << "find_homographies printed_points.size " << printed_points.size() << " and imgs.size " << imgs.size() << " should be equal";
-      return;
+      return false;
     }
 
     //(i.e. 2d points projected onto the image plane)
     vector<cv::Point2f> printed_pattern;
     make_printed_pattern( printed_pattern );
 
-    for ( int i = 0; i < printed_points.size(); i++ )
+    homographies.resize( nimgs );
+
+    for ( int i = 0; i < nimgs; i++ )
     {
       cv::Mat1d homography = cv::findHomography( cv::Mat(printed_points[i]), cv::Mat(printed_pattern), CV_RANSAC, 0.01 );
-      homographies.push_back( homography );
-    }
+
+      if ( homography.empty() )
+      {
+        ofLogError("cml::ProjectorCameraCalibration") << "error: homography not found on image " << ofToString(i);
+        return false;
+      }
+
+      //homographies.push_back( homography );
+      homographies[i] = homography;
+    } 
+
+    return true;
   };
 
-  void ProjectorCameraCalibration::find_printed_points( 
+  bool ProjectorCameraCalibration::find_printed_points( 
       vector< vector<cv::Point2f> >& printed_points )
   {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "find_printed_points";
 
-    for ( int i = 0; i < imgs.size(); i++ )
+    int nimgs = imgs.size();
+
+    printed_points.resize( nimgs );
+
+    for ( int i = 0; i < nimgs; i++ )
     {
-      //ofImage& img = imgs[i];
       cv::Mat img = toCv(imgs[i]);
 
       //find 4 printed patterns points on camera (progressive white roi)
@@ -333,87 +477,114 @@ namespace cml
       find_printed_chessboards( img, _printed_points );
       if ( _printed_points.size() == 0 ) 
       {
-        ofLogWarning("cml::ProjectorCameraCalibration") << "find_printed_chessboards not found on image " << ofToString(i);
-        return;
+        ofLogWarning("cml::ProjectorCameraCalibration") << "find_printed_points not found on image " << ofToString(i);
+        return false;
       }
 
-      printed_points.push_back( _printed_points );
+      //printed_points.push_back( _printed_points );
+      printed_points[i] = _printed_points;
     }
+
+    return true;
   };
 
-  void ProjectorCameraCalibration::projected_points_on_board( 
+  bool ProjectorCameraCalibration::projected_points_on_board( 
       vector< vector<cv::Point2f> >& projected_points, 
       vector< cv::Mat1d >& homographies, 
       vector< vector<cv::Point3f> >& projected_points3d_on_board )
   { 
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "projected_points_on_board"; 
+
+    int nimgs = imgs.size();
 
     vector< vector<cv::Point2f> > proj_pts2d;
-    for ( int i = 0; i < imgs.size(); i++ )
+    proj_pts2d.resize( nimgs );
+
+    for ( int i = 0; i < nimgs; i++ )
     {
+      if ( projected_points[i].size() != projector_pattern_size() ) 
+      {
+        ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "projected_points_on_board: image (" << ofToString(i) << ") projected points size (" << projected_points[i].size() << ") != projector pattern size (" << projector_pattern_size() << ")";
+        return false;
+      }
+
       cv::Mat1d homography = homographies[i];
       cv::Mat proj_pts_mat; 
       cv::perspectiveTransform(cv::Mat(projected_points[i]), proj_pts_mat, homography);
-      proj_pts2d.push_back( proj_pts_mat );
+
+      //proj_pts2d.push_back( proj_pts_mat );
+      proj_pts2d[i] = proj_pts_mat;
     }
 
-    projected_points3d_on_board.resize( proj_pts2d.size() );
-    //projected_points3d_on_board( proj_pts2d.size() );
-
-    for ( int i = 0; i < proj_pts2d.size(); i++ )
+    if ( proj_pts2d.size() != nimgs )
     {
-      projected_points3d_on_board[i].resize( proj_pts2d[i].size() );
+      ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "projected_points_on_board: projected points on board 2d size (" << proj_pts2d.size() << ") != images size (" << nimgs << ")";
+      return false;
+    }
 
-      for ( int k = 0; k < proj_pts2d[i].size(); k++ )
+    projected_points3d_on_board.resize( nimgs );
+    //projected_points3d_on_board( nimgs );
+
+    for ( int i = 0; i < nimgs; i++ )
+    {
+      int npts = proj_pts2d[i].size();
+
+      if ( npts != projector_pattern_size() )
+      {
+        ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "projected_points_on_board: projected points on board 2d points size (" << npts << ") != projector pattern size config (" << projector_pattern_size() << ")";
+        return false;
+      }
+
+      projected_points3d_on_board[i].resize( npts );
+
+      for ( int k = 0; k < npts; k++ )
       {
         projected_points3d_on_board[i][k].x = proj_pts2d[i][k].x;
         projected_points3d_on_board[i][k].y = -proj_pts2d[i][k].y;
         projected_points3d_on_board[i][k].z = 0.;
       }
     }
+
+    return true;
   };
 
-  void ProjectorCameraCalibration::find_projected_points( 
+  bool ProjectorCameraCalibration::find_projected_points( 
       vector< vector<cv::Point2f> >& projected_points )
   {
-    projected_points.resize( imgs.size() );
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "find_projected_points";
 
-    int projw = cfg_proj.pattern_width;
-    int projh = cfg_proj.pattern_height;
-    int projsize = projw * projh;
+    int nimgs = imgs.size();
 
-    //bool allfound = true;
-    for ( int i = 0; i < imgs.size(); i++ )
+    projected_points.resize( nimgs ); 
+
+    for ( int i = 0; i < nimgs; i++ )
     {
-      //ofImage& img = imgs[i];
       cv::Mat img = toCv(imgs[i]); 
 
       vector<cv::Point2f> proj_corners;
       cv::Mat dst_image;
-      find_chessboard_corners( projw, projh, proj_corners, img, dst_image, 1 );
-      bool found = proj_corners.size() == projsize;
+      find_chessboard_corners( cfg_proj.pattern_width, cfg_proj.pattern_height, proj_corners, img, dst_image, 1 );
 
-      if ( !found ) 
+      if ( proj_corners.size() != projector_pattern_size() ) 
       {
-        ofLogWarning("cml::ProjectorCameraCalibration") << "find_printed_chessboards not found on image " << ofToString(i);
-        return;
+        ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "find_projected_points: image (" << ofToString(i) << ") projected points size (" << proj_corners.size() << ") != projector pattern size (" << projector_pattern_size() << ")";
+        return false;
       }
 
-      projected_points.push_back( proj_corners ); 
-
-      //if (found)
-      //{
-        //projected_points[i] = proj_corners; 
-      //}
-
-      //else
-      //{
-        //ofLogWarning("cml::ProjectorCameraCalibration") << "calibrate: projected pattern not found on image " << ofToString(i);
-        //projected_points[i].resize(0);
-        //allfound = false;
-      //}
+      //projected_points.push_back( proj_corners ); 
+      projected_points[i] = proj_corners;
     }
 
-    //return allfound;
+    for ( int i = 0; i < nimgs; i++ )
+    {
+      if ( projected_points[i].size() != projector_pattern_size() ) 
+      {
+        ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "find_projected_points: image (" << ofToString(i) << ") projected points size (" << projected_points[i].size() << ") != projector pattern size (" << projector_pattern_size() << ")";
+        return false;
+      }
+    }
+
+    return true;
   };
 
   void ProjectorCameraCalibration::make_printed_pattern(
@@ -463,6 +634,8 @@ namespace cml
   void ProjectorCameraCalibration::make_projector_pattern( 
       vector< vector<cv::Point2f> >& projector_pattern )
   {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "make_projector_pattern";
+
     float offset_x = (cfg_proj.image_size.width - (cfg_proj.pattern_width-1) * cfg_proj.pattern_square_size_pixels) / 2;
 
     float offset_y = (cfg_proj.image_size.height - (cfg_proj.pattern_height-1) * cfg_proj.pattern_square_size_pixels) / 2;
@@ -474,14 +647,23 @@ namespace cml
     make_pattern( corners3d, cfg_proj.pattern_width, cfg_proj.pattern_height, cfg_proj.pattern_square_size_pixels, nimgs );
 
     projector_pattern.resize( nimgs );
+
     for (int i = 0; i < nimgs; i++) 
     {
       int npts = corners3d[i].size();
-      projector_pattern[i].resize( npts );
-      for (int j = 0; j < npts; j++) 
+
+      if ( npts != projector_pattern_size() )
       {
-        projector_pattern[i][j].x = corners3d[i][ npts-1-j ].x + offset_x;			
-        projector_pattern[i][j].y = corners3d[i][ npts-1-j ].y + offset_y;			
+        ofLogError("cml::ProjectorCameraCalibration") << "\t\t" << "make_projector_pattern: points size (" << npts << ") != projector pattern size config (" << projector_pattern_size() << ")";
+        return false;
+      }
+
+      projector_pattern[i].resize( npts );
+
+      for (int k = 0; k < npts; k++) 
+      {
+        projector_pattern[i][k].x = corners3d[i][ npts-1-k ].x + offset_x;			
+        projector_pattern[i][k].y = corners3d[i][ npts-1-k ].y + offset_y;			
       }
     }
 
@@ -489,65 +671,49 @@ namespace cml
 
   void ProjectorCameraCalibration::find_printed_chessboards(
       const cv::Mat& img, 
-      vector<cv::Point2f>& corners )
+      vector<cv::Point2f>& corners)
   {
-    find_chessboards( img, corners, true, false );
-  };
-
-  void ProjectorCameraCalibration::find_chessboards(
-      const cv::Mat& img, 
-      vector<cv::Point2f>& corners,
-      bool add_printed_corners,
-      bool add_projector_corners,
-      int x, int y )
-  {
-    bool render = x > -1 && y > -1;
-
-    ofLogNotice("cml::ProjectorCameraCalibration") << "find_chessboards" 
-      << ", add_printed_corners: " << add_printed_corners
-      << ", add_projector_corners: " << add_projector_corners
-      << ", xy: " << x << "," << y
-      << ", render: " << render;
+    ofLogNotice("cml::ProjectorCameraCalibration") << "find_printed_chessboards";
 
     cv::Mat copy = img.clone();
 
-    vector<cv::Point2f> pts_proj, pts_3x6, pts_3x5, pts_3x4, pts_3x3; 
-    cv::Mat dstimg_proj, dstimg_3x6, dstimg_3x5, dstimg_3x4, dstimg_3x3;
-
-
-    find_chessboard_roi( cfg_proj.pattern_width, cfg_proj.pattern_height, copy, dstimg_proj, pts_proj );
-    if ( render ) render_mat( dstimg_proj, x, y ); 
+    vector<cv::Point2f> pts_3x6, pts_3x5, pts_3x4, pts_3x3; 
+    cv::Mat dstimg_3x6, dstimg_3x5, dstimg_3x4, dstimg_3x3;
 
     find_chessboard_roi( 3,6, copy, dstimg_3x6, pts_3x6 );
-    if ( render ) render_mat( dstimg_3x6, x, y ); 
-
     find_chessboard_roi( 3,5, copy, dstimg_3x5, pts_3x5 );
-    if ( render ) render_mat( dstimg_3x5, x, y ); 
-
     find_chessboard_roi( 3,4, copy, dstimg_3x4, pts_3x4 );
-    if ( render ) render_mat( dstimg_3x4, x, y );
-
     find_chessboard_roi( 3,3, copy, dstimg_3x3, pts_3x3 );
-    if ( render ) render_mat( dstimg_3x3, x, y );
-
 
     bool found_printed = pts_3x6.size() != 0 && pts_3x5.size() != 0 && pts_3x4.size() != 0 && pts_3x3.size() != 0;
-    bool found_projected = pts_proj.size() != 0;
 
-    if ( add_projector_corners && found_projected )
-    {
-      corners.insert(corners.end(), pts_proj.begin(), pts_proj.end());
-    }
-
-    if ( add_printed_corners && found_printed )
+    if ( found_printed )
     {
       corners.insert(corners.end(), pts_3x6.begin(), pts_3x6.end());
       corners.insert(corners.end(), pts_3x5.begin(), pts_3x5.end());
       corners.insert(corners.end(), pts_3x4.begin(), pts_3x4.end());
       corners.insert(corners.end(), pts_3x3.begin(), pts_3x3.end());
-    } 
+    }
+  };
 
-  }; 
+  void ProjectorCameraCalibration::find_projected_chessboards(
+      const cv::Mat& img, 
+      vector<cv::Point2f>& corners)
+  {
+    ofLogNotice("cml::ProjectorCameraCalibration") << "find_projected_chessboards";
+
+    cv::Mat copy = img.clone();
+
+    vector<cv::Point2f> pts_proj; 
+    cv::Mat dstimg_proj;
+
+    find_chessboard_roi( cfg_proj.pattern_width, cfg_proj.pattern_height, copy, dstimg_proj, pts_proj );
+
+    if ( pts_proj.size() != 0 )
+    {
+      corners.insert(corners.end(), pts_proj.begin(), pts_proj.end());
+    }
+  };
 
   bool ProjectorCameraCalibration::find_chessboard_roi(
       int width, int height, 
@@ -580,6 +746,11 @@ namespace cml
     image_roi = cv::Scalar(255, 255, 255);
 
     return true;
+  };
+
+  int ProjectorCameraCalibration::projector_pattern_size()
+  {
+    return cfg_proj.pattern_width * cfg_proj.pattern_height;
   };
 
 
@@ -691,9 +862,7 @@ namespace cml
       //cv::Mat corner_matrix(corners.size(), 1, CV_32FC2);
       //for (int row = 0; row < corners.size(); ++row)
         //corner_matrix.at<Point2f>(row,0) = corners[row];
-
       //drawChessboardCorners(draw_image, pattern_size, corner_matrix, ok);
-
       //if (debug_image) 
         //draw_image.copyTo(*debug_image);
     //}

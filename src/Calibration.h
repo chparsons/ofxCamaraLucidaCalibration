@@ -52,6 +52,16 @@ namespace cml
         _img.draw(x,y);
       };
 
+      void render_points( vector<cv::Point2f>& points, int x, int y, float scale, float size = 5. )
+      {
+        ofPushStyle();
+        ofNoFill();
+        ofSetColor( ofColor::red );
+        for ( int i = 0; i < points.size(); i++ )
+          ofCircle( x + (points[i].x * scale), y + (points[i].y * scale), size );
+        ofPopStyle();
+      };
+
       bool flt_eq(float lhs, float rhs, float epsilon = std::numeric_limits<float>::epsilon())
       {
         return std::abs(lhs - rhs) <= epsilon;

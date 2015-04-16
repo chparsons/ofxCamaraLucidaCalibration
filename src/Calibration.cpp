@@ -77,6 +77,7 @@ namespace cml
     if ( ! calibration.isReady() )
     {
       ofLogError("cml::Calibration") << "save_intrinsics for " << name << " failed, because your calibration isn't ready yet!";
+      return;
     }
 
     string filename = folder + "/calib_" + name + "." + format + ".yml";
