@@ -16,9 +16,16 @@ namespace cml
       {
         cv::Size image_size;
         int pattern_width, pattern_height;
-        float pattern_square_size;
+        float pattern_square_size_mts;
         float pattern_square_size_pixels;
         ofxCv::CalibrationPattern pattern_type = CHESSBOARD; //CIRCLES_GRID, ASYMMETRIC_CIRCLES_GRID
+      };
+
+      struct Extrinsics
+      {
+        cv::Mat1d R, T;
+        cv::Mat E, F;
+        double error;
       };
 
       Calibration();

@@ -133,7 +133,8 @@ namespace cml
 
   void ProjectorCameraCalibration::render( int x, int y )
   {
-    ofDrawBitmapStringHighlight("movement: " /*+ ofToString(diffMean)*/, x, y+20, ofColor::cyan, ofColor::white);
+    //ofDrawBitmapStringHighlight("movement: " + ofToString(diffMean), x, y+20, ofColor::cyan, ofColor::black);
+    ofDrawBitmapStringHighlight("cam_calib_file: " + cam_calib_file, x, y+20, ofColor::cyan, ofColor::black);
 
     //render_calib(calib_cam, 0);
 
@@ -261,7 +262,7 @@ namespace cml
     cfg_proj.image_size = cv::Size( settings["image_width"], settings["image_height"] );
     cfg_proj.pattern_width = settings["pattern_width"];
     cfg_proj.pattern_height = settings["pattern_height"];
-    cfg_proj.pattern_square_size = settings["pattern_square_size"];
+    cfg_proj.pattern_square_size_mts = settings["pattern_square_size_mts"];
     cfg_proj.pattern_square_size_pixels = settings["pattern_square_size_pixels"];
 
     //xy positions in meters of each 3xN printed patterns
@@ -307,13 +308,16 @@ namespace cml
     string src_name = proj_name;
     string dst_name = cam_name;
 
-    string filename = folder + "/calib_RT_" + src_name + "_to_" + dst_name + ".yml";
+    string filename = folder + "/extrinsics_" + src_name + "_to_" + dst_name + ".yml";
     bool absolute = false;
 
     cv::FileStorage fs( ofToDataPath(filename, absolute), cv::FileStorage::WRITE); 
 
-    fs << "R" << R;
-    fs << "T" << T;
+    fs << "R" << extrinsics.R;
+    fs << "T" << extrinsics.T;
+    fs << "E" << extrinsics.E;
+    fs << "F" << extrinsics.F;
+    fs << "reprojection_error" << extrinsics.error;
 
     ofLogNotice("cml::ProjectorCameraCalibration") << "save stereo RT from [" << src_name << "] to [" << dst_name << "] to file " << filename;
   }; 
@@ -382,41 +386,47 @@ namespace cml
   {
     ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "calibrate_projector_camera";
 
-    cv::Mat E(3,3,CV_64F), F(3,3,CV_64F); 
+    //cv::Mat E(3,3,CV_64F), F(3,3,CV_64F); 
 
     //const ofxCv::Intrinsics& 
     cv::Mat cam_distorted_intrinsics = calib_cam.getDistortedIntrinsics().getCameraMatrix();
     cv::Mat cam_distortion = calib_cam.getDistCoeffs();
 
-    //cv::Mat cam_undistorted_intrinsics = calib_cam.getUndistortedIntrinsics().getCameraMatrix();
-    //cv::Mat zero_dist (proj_distortion.size(), proj_distortion.type());
-    //zero_dist = cv::Scalar(0);
+    cv::Mat cam_undistorted_intrinsics = calib_cam.getUndistortedIntrinsics().getCameraMatrix();
+    cv::Mat zero_dist (proj_distortion.size(), proj_distortion.type());
+    zero_dist = cv::Scalar(0);
 
     cv::stereoCalibrate(
+
         projected_points3d_on_board,
         projector_pattern, //i.e. projector pattern projected onto the projector image plane
         projected_points, //i.e. projector pattern projected onto the camera image plane
+
         //data from proj intrinsics calib
         proj_intrinsics, 
         proj_distortion,
+
         //data from cam intrinsics loaded
-        cam_distorted_intrinsics, 
+        //cam_distorted_intrinsics, 
+        cam_undistorted_intrinsics, 
         cam_distortion,
-        //cam_undistorted_intrinsics, 
         //zero_dist, 
+
         //size
         cfg_proj.image_size,
+
         //output
-        R, T, E, F,
+        extrinsics.R, extrinsics.T, 
+        extrinsics.E, extrinsics.F,
         cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 50, 1e-6),
         cv::CALIB_FIX_INTRINSIC );
 
-    double error = computeCalibrationError(F, projector_pattern, projected_points);
+    extrinsics.error = computeCalibrationError(extrinsics.F, projector_pattern, projected_points);
 
     ofLogNotice("cml::ProjectorCameraCalibration") << "calibrate projector camera:" 
-      << "\n average pixel reprojection error: " << error
-      << "\n R: \n" << R
-      << "\n T: \n" << T;
+      << "\n average pixel reprojection error: " << extrinsics.error
+      << "\n R: \n" << extrinsics.R
+      << "\n T: \n" << extrinsics.T;
 
     //T = rgb_R * T - rgb_T;
     //R = rgb_R * R;
@@ -592,10 +602,10 @@ namespace cml
   {
     vector< vector<cv::Point3f> > _3x3, _3x4, _3x5, _3x6; 
 
-    make_pattern(_3x3, 3,3, cfg_proj.pattern_square_size, 1);
-    make_pattern(_3x4, 3,4, cfg_proj.pattern_square_size, 1);
-    make_pattern(_3x5, 3,5, cfg_proj.pattern_square_size, 1);
-    make_pattern(_3x6, 3,6, cfg_proj.pattern_square_size, 1);
+    make_pattern(_3x3, 3,3, cfg_proj.pattern_square_size_mts, 1);
+    make_pattern(_3x4, 3,4, cfg_proj.pattern_square_size_mts, 1);
+    make_pattern(_3x5, 3,5, cfg_proj.pattern_square_size_mts, 1);
+    make_pattern(_3x6, 3,6, cfg_proj.pattern_square_size_mts, 1);
 
     printed_pattern.resize( _3x3[0].size() + _3x4[0].size() + _3x5[0].size() + _3x6[0].size() );
 

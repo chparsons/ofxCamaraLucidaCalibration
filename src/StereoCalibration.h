@@ -34,7 +34,7 @@ namespace cml
         cml::Calibration::Config cfg;
         cfg.pattern_width = 7;
         cfg.pattern_height = 10;
-        cfg.pattern_square_size = 2.5;
+        cfg.pattern_square_size_mts = 2.5;
         cfg.pattern_type = CHESSBOARD;
 
         init_calib( calib0, cfg );
@@ -70,11 +70,9 @@ namespace cml
 
       void render()
       {
-        //drawHighlightString("movement "+name0+": " + ofToString(diffMean0), 0, 20, cyanPrint);
-        ofDrawBitmapStringHighlight("movement "+name0+": " + ofToString(diffMean0), 0, 20, ofColor::cyan, ofColor::white);
+        ofDrawBitmapStringHighlight("movement "+name0+": " + ofToString(diffMean0), 0, 20, ofColor::cyan, ofColor::black);
         
-        //drawHighlightString("movement "+name1+": " + ofToString(diffMean1), w, 20, cyanPrint);
-        ofDrawBitmapStringHighlight("movement "+name1+": " + ofToString(diffMean1), w, 20, ofColor::cyan, ofColor::white);
+        ofDrawBitmapStringHighlight("movement "+name1+": " + ofToString(diffMean1), w, 20, ofColor::cyan, ofColor::black);
 
         debug_calib(calib0, name0, 0);
         debug_calib(calib1, name1, w);
@@ -191,7 +189,7 @@ namespace cml
           return;
         }
 
-        string filename = folder + "/calib_RT_" + src_name + "_to_" + dst_name + ".yml";
+        string filename = folder + "/extrinsics_" + src_name + "_to_" + dst_name + ".yml";
         bool absolute = false;
 
         cv::FileStorage fs( ofToDataPath(filename, absolute), cv::FileStorage::WRITE); 

@@ -40,7 +40,7 @@ namespace cml
   void Calibration::init_calib( ofxCv::Calibration& calibration, Calibration::Config cfg  )
   { 
     calibration.setPatternSize(cfg.pattern_width, cfg.pattern_height);
-    calibration.setSquareSize(cfg.pattern_square_size);
+    calibration.setSquareSize(cfg.pattern_square_size_mts);
     calibration.setPatternType(cfg.pattern_type);
   }; 
 
@@ -80,7 +80,7 @@ namespace cml
       return;
     }
 
-    string filename = folder + "/calib_" + name + "." + format + ".yml";
+    string filename = folder + "/intrinsics_" + name + "." + format + ".yml";
     bool absolute = false;
 
     cv::FileStorage fs( ofToDataPath(filename, absolute), cv::FileStorage::WRITE );

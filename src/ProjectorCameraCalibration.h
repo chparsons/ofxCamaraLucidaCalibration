@@ -75,7 +75,7 @@ namespace cml
       int projector_pattern_size();
 
       //calib output
-      cv::Mat1d R, T;
+      cml::Calibration::Extrinsics extrinsics;
       cv::Mat1d proj_intrinsics;
       cv::Mat1d proj_distortion;
 
