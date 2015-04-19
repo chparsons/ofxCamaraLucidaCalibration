@@ -65,14 +65,12 @@ namespace cml
     //check all chessboards are found on captured image
     if ( !update_captured_points(undistorted) )
     {
-      //capture failed
-      capture_time_status = -ofGetElapsedTimef();
+      capture_failed();
       return;
     }
     else 
     {
-      //capture success
-      capture_time_status = ofGetElapsedTimef();
+      capture_success();
     }
 
     imgs.push_back( undistorted );
@@ -149,9 +147,12 @@ namespace cml
     render_points( captured_projected_points, img_x, img_y, scale, 2. );
 
     debug_calib(calib_cam, cam_name, x, y);
-    debug_calib(calib_proj, proj_name, img_x, img_y);
+    //debug_calib(calib_proj, proj_name, img_x, img_y);
 
-    render_capture_time_status();
+    ofDrawBitmapStringHighlight( "captures: " + ofToString(imgs.size()), img_x, img_y, ofColor::yellow, ofColor::black);
+    ofDrawBitmapStringHighlight( "extrinsics reprojection error: " + ofToString( extrinsics.error ), img_x, img_y + 20, ofColor::yellow, ofColor::black);
+
+    render_capture_status();
   };
 
   void ProjectorCameraCalibration::render_chessboard( int _x, int _y, int brightness )
@@ -184,7 +185,7 @@ namespace cml
   {
     //cml::Calibration::save_intrinsics( calib_cam, cam_name ); //already calibrated
     cml::Calibration::save_intrinsics( calib_proj, proj_name, folder );
-    save_stereo_RT( folder );
+    save_extrinsics( folder );
   };
 
   void ProjectorCameraCalibration::save_images( string folder )
@@ -266,7 +267,7 @@ namespace cml
     cfg_proj.image_size = cv::Size( settings["image_width"], settings["image_height"] );
     cfg_proj.pattern_width = settings["pattern_width"];
     cfg_proj.pattern_height = settings["pattern_height"];
-    cfg_proj.pattern_square_size_mts = settings["pattern_square_size_mts"];
+    cfg_proj.pattern_square_size = settings["pattern_square_size"];
     cfg_proj.pattern_square_size_pixels = settings["pattern_square_size_pixels"];
 
     //xy positions in meters of each 3xN printed patterns
@@ -301,11 +302,11 @@ namespace cml
       + "\n";
   };
 
-  void ProjectorCameraCalibration::save_stereo_RT( string folder )
+  void ProjectorCameraCalibration::save_extrinsics( string folder )
   {
     if ( ! calib_proj.isReady() )
     {
-      ofLogError("cml::ProjectorCameraCalibration") << "save_stereo_RT failed, projector calibration isn't ready yet!";
+      ofLogError("cml::ProjectorCameraCalibration") << "save_extrinsics failed, projector calibration isn't ready yet!";
       return;
     }
 
@@ -612,10 +613,10 @@ namespace cml
   {
     vector< vector<cv::Point3f> > _3x3, _3x4, _3x5, _3x6; 
 
-    make_pattern(_3x3, 3,3, cfg_proj.pattern_square_size_mts, 1);
-    make_pattern(_3x4, 3,4, cfg_proj.pattern_square_size_mts, 1);
-    make_pattern(_3x5, 3,5, cfg_proj.pattern_square_size_mts, 1);
-    make_pattern(_3x6, 3,6, cfg_proj.pattern_square_size_mts, 1);
+    make_pattern(_3x3, 3,3, cfg_proj.pattern_square_size, 1);
+    make_pattern(_3x4, 3,4, cfg_proj.pattern_square_size, 1);
+    make_pattern(_3x5, 3,5, cfg_proj.pattern_square_size, 1);
+    make_pattern(_3x6, 3,6, cfg_proj.pattern_square_size, 1);
 
     printed_pattern.resize( _3x3[0].size() + _3x4[0].size() + _3x5[0].size() + _3x6[0].size() );
 

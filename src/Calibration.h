@@ -16,7 +16,7 @@ namespace cml
       {
         cv::Size image_size;
         int pattern_width, pattern_height;
-        float pattern_square_size_mts;
+        float pattern_square_size;
         float pattern_square_size_pixels;
         ofxCv::CalibrationPattern pattern_type = CHESSBOARD; //CIRCLES_GRID, ASYMMETRIC_CIRCLES_GRID
       };
@@ -31,17 +31,16 @@ namespace cml
       Calibration();
       ~Calibration(); 
 
-      void toggle_capture();
+      void toggle_capture(); 
 
     protected: 
 
       bool _capture;
-      float capture_time_status; //0 idle, -ofGetElapsedTimef() failed, ofGetElapsedTimef() success
 
       float curTime, lastTime;
       float diffThreshold; // maximum amount of movement
       float timeThreshold; // minimum time between snapshots
-      //int startCleaning; // start cleaning outliers after this many samples 
+      //int startCleaning; // start cleaning outliers after this many samples  
 
       bool update_cam( cv::Mat& camMat, ofPixels& pix, ofPixels& previous, ofPixels& diff, float* diffMean );
 
@@ -49,21 +48,31 @@ namespace cml
       void render_calib( ofxCv::Calibration& calibration, int x, int y=0 );
       void debug_calib( ofxCv::Calibration& calibration, string name, int x, int y=0 ); 
 
-      void render_capture_time_status()
+      void capture_failed()
       {
-        if (capture_time_status == 0) //idle
+        capture_status = -capture_time_status();
+      };
+
+      void capture_success()
+      {
+        capture_status = capture_time_status();
+      };
+
+      void render_capture_status()
+      {
+        if (capture_status == 0) //idle
           return;
 
-        float duration = 1; //secs
-        float t = ofClamp(duration-(ofGetElapsedTimef()-abs(capture_time_status)),0,duration);
+        float duration = 10;
+        float t = ofClamp(duration-(capture_time_status()-abs(capture_status)),0,duration) / duration;
         if (t <= 0.)
         {
-          capture_time_status = 0; //idle
+          capture_status = 0; //idle
           return;
         }
 
         ofFloatColor col;
-        if (capture_time_status < 0) //failed
+        if (capture_status < 0) //failed
           col = ofFloatColor::red;
         else 
           col = ofFloatColor::green; //success 
@@ -100,6 +109,16 @@ namespace cml
       bool flt_eq(float lhs, float rhs, float epsilon = std::numeric_limits<float>::epsilon())
       {
         return std::abs(lhs - rhs) <= epsilon;
+      };
+
+    private:
+
+      float capture_status; //0 idle, -capture_time_status() failed, capture_time_status() success
+
+      float capture_time_status()
+      {
+        return ofGetFrameNum();
+        //return ofGetElapsedTimef();
       };
 
   };

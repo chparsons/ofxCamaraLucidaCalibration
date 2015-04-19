@@ -10,7 +10,7 @@ namespace cml
   Calibration::Calibration()
   {
     _capture = false;
-    capture_time_status = 0;
+    capture_status = 0;
   };
 
   Calibration::~Calibration(){}; 
@@ -41,7 +41,7 @@ namespace cml
   void Calibration::init_calib( ofxCv::Calibration& calibration, Calibration::Config cfg  )
   { 
     calibration.setPatternSize(cfg.pattern_width, cfg.pattern_height);
-    calibration.setSquareSize(cfg.pattern_square_size_mts);
+    calibration.setSquareSize(cfg.pattern_square_size);
     calibration.setPatternType(cfg.pattern_type);
   }; 
 

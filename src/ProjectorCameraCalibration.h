@@ -85,7 +85,7 @@ namespace cml
       //void allocate( ofPixels& pix ); 
 
       bool update_captured_points( ofImage& img );
-      void save_stereo_RT( string folder );
+      void save_extrinsics( string folder );
       bool load_settings( string pattern_settings_file );
 
       bool calibrate_projector_intrinsics( 

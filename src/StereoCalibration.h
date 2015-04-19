@@ -30,10 +30,9 @@ namespace cml
         h = pix0.getHeight();
         chan = pix0.getNumChannels();
 
-        cml::Calibration::Config cfg;
         cfg.pattern_width = 7;
         cfg.pattern_height = 10;
-        cfg.pattern_square_size_mts = 2.5;
+        cfg.pattern_square_size = 2.5; //cm
         cfg.pattern_type = CHESSBOARD;
 
         init_calib( calib0, cfg );
@@ -58,13 +57,11 @@ namespace cml
         if ( !find_board( calib0, camMat0 ) || !find_board( calib1, camMat1 ) )
         {
           ofLogWarning() << "did not found the chessboard on any camera";
-          //capture failed
-          capture_time_status = -ofGetElapsedTimef();
+          capture_failed();
           return;
         }
 
-        //capture success
-        capture_time_status = ofGetElapsedTimef();
+        capture_success();
 
         calibrate( calib0, camMat0, pix0, undistorted0 );
         calibrate( calib1, camMat1, pix1, undistorted1 );
@@ -74,12 +71,9 @@ namespace cml
 
       void render()
       {
-        ofDrawBitmapStringHighlight("movement "+name0+": " + ofToString(diffMean0), 0, 20, ofColor::cyan, ofColor::black);
-        
-        ofDrawBitmapStringHighlight("movement "+name1+": " + ofToString(diffMean1), w, 20, ofColor::cyan, ofColor::black);
+        ofDrawBitmapStringHighlight("movement "+name0+": " + ofToString(diffMean0), 0, 20, ofColor::cyan, ofColor::black);        
 
-        debug_calib(calib0, name0, 0);
-        debug_calib(calib1, name1, w);
+        ofDrawBitmapStringHighlight("movement "+name1+": " + ofToString(diffMean1), w, 20, ofColor::cyan, ofColor::black); 
 
         render_calib(calib0, 0);
         render_calib(calib1, w);
@@ -87,7 +81,10 @@ namespace cml
         undistorted0.draw( 0, h );
         undistorted1.draw( w, h );
 
-        render_capture_time_status();
+        debug_calib(calib0, name0, 0);
+        debug_calib(calib1, name1, w);
+
+        render_capture_status();
       };
 
       void save_all( string folder )
@@ -96,8 +93,8 @@ namespace cml
         save_intrinsics( name0, folder, "aruco" );
         save_intrinsics( name1, folder );
         save_intrinsics( name1, folder, "aruco" );
-        save_stereo_RT( name0, name1, folder );
-        save_stereo_RT( name1, name0, folder );
+        save_extrinsics( name0, name1, folder );
+        save_extrinsics( name1, name0, folder );
       };
 
       void save_intrinsics( string name, string folder, string format = "ofxcv" )
@@ -108,11 +105,11 @@ namespace cml
           cml::Calibration::save_intrinsics( calib1, name1, folder, format );
       }; 
 
-      void save_stereo_RT( string src_name, string dst_name, string folder  )
+      void save_extrinsics( string src_name, string dst_name, string folder  )
       {
         ofxCv::Calibration& src_calib = src_name == name0 ? calib0 : calib1;
         ofxCv::Calibration& dst_calib = dst_name == name0 ? calib0 : calib1;
-        save_stereo_RT( src_name, src_calib, dst_name, dst_calib, folder );
+        save_extrinsics( src_name, src_calib, dst_name, dst_calib, folder );
       }; 
 
       void reset()
@@ -132,6 +129,9 @@ namespace cml
       //ofPixels pix0, pix1;
       cv::Mat camMat0, camMat1;
       float diffMean0, diffMean1; 
+
+      cml::Calibration::Config cfg;
+      cml::Calibration::Extrinsics extrinsics;
 
       bool calibrate( ofxCv::Calibration& calibration, cv::Mat& camMat, ofPixels& pix, ofImage& undistorted )
       {
@@ -157,6 +157,53 @@ namespace cml
           calibration.undistort( toCv(pix), toCv(undistorted) );
           undistorted.update();
         }
+      };
+
+      bool calibrate_extrinsics( ofxCv::Calibration& src_calib, ofxCv::Calibration& dst_calib, cml::Calibration::Extrinsics& extrinsics ) 
+      {
+
+        if ( !src_calib.isReady() || !dst_calib.isReady() ) 
+        {
+          ofLogError() << "calibrate_extrinsics() requires both Calibration objects to have just been calibrated";
+          return false;
+        }
+
+        if ( src_calib.imagePoints.size() != dst_calib.imagePoints.size() ) 
+        {
+          ofLogError() << "calibrate_extrinsics() requires both Calibration objects to be trained simultaneously on the same board";
+          return false;
+        }
+
+        ofxCv::Intrinsics src_distorted_intrinsics = src_calib.getDistortedIntrinsics();
+        ofxCv::Intrinsics dst_distorted_intrinsics = dst_calib.getDistortedIntrinsics();
+
+        cv::Size image_size = src_distorted_intrinsics.getImageSize();
+
+        cv::Mat srcCameraMatrix = src_distorted_intrinsics.getCameraMatrix();
+        cv::Mat srcDistCoeffs = src_calib.getDistCoeffs();
+
+        cv::Mat dstCameraMatrix = dst_distorted_intrinsics.getCameraMatrix();
+        cv::Mat dstDistCoeffs = dst_calib.getDistCoeffs();
+
+        vector<Point3f> points = ofxCv::Calibration::createObjectPoints( src_calib.getPatternSize(), src_calib.getSquareSize(), cfg.pattern_type );
+        vector< vector<Point3f> > objectPoints;
+        objectPoints.resize( src_calib.imagePoints.size(), points );
+
+        // uses CALIB_FIX_INTRINSIC by default
+        cv::stereoCalibrate(
+            objectPoints,
+            src_calib.imagePoints, 
+            dst_calib.imagePoints,
+            srcCameraMatrix, 
+            srcDistCoeffs,
+            dstCameraMatrix,
+            dstDistCoeffs,
+            image_size, 
+            //output
+            extrinsics.R, extrinsics.T,
+            extrinsics.E, extrinsics.F );
+
+        return true;
       };
 
       bool find_board( ofxCv::Calibration& calibration, cv::Mat& camMat )
@@ -185,13 +232,19 @@ namespace cml
         //diff.allocate( w, h, chan );
       };
 
-      void save_stereo_RT( string src_name, ofxCv::Calibration& src_calib, string dst_name, ofxCv::Calibration& dst_calib, string folder )
+      void save_extrinsics( string src_name, ofxCv::Calibration& src_calib, string dst_name, ofxCv::Calibration& dst_calib, string folder )
       {
-        Mat R,T;
 
-        if ( ! src_calib.getTransformation( dst_calib, R, T ) ) 
+        //Mat R,T;
+        //if ( ! src_calib.getTransformation( dst_calib, R, T ) ) 
+        //{
+          //ofLogWarning("cml::StereoCalibration") << "stereo calibrate failed";
+          //return;
+        //}
+
+        if ( !calibrate_extrinsics( src_calib, dst_calib, extrinsics ) ) 
         {
-          ofLogWarning("cml::StereoCalibration") << "save stereo RT failed on ofxCalibration::getTransformation";
+          ofLogWarning("cml::StereoCalibration") << "calibrate extrinsics failed";
           return;
         }
 
@@ -200,10 +253,12 @@ namespace cml
 
         cv::FileStorage fs( ofToDataPath(filename, absolute), cv::FileStorage::WRITE); 
 
-        fs << "R" << R;
-        fs << "T" << T;
+        fs << "R" << extrinsics.R;
+        fs << "T" << extrinsics.T;
+        fs << "E" << extrinsics.E;
+        fs << "F" << extrinsics.F;
 
-        ofLogNotice("cml::StereoCalibration") << "save stereo RT from [" << src_name << "] to [" << dst_name << "] to file " << filename;
+        ofLogNotice("cml::StereoCalibration") << "save extrinsics: RT from [" << src_name << "] to [" << dst_name << "] to file " << filename;
       };
 
   };
