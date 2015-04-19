@@ -159,6 +159,7 @@ namespace cml
         }
       };
 
+      //see ofxCv::getTransformation
       bool calibrate_extrinsics( ofxCv::Calibration& src_calib, ofxCv::Calibration& dst_calib, cml::Calibration::Extrinsics& extrinsics ) 
       {
 
