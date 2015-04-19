@@ -24,7 +24,6 @@ namespace cml
         diffThreshold = 6.; //2.5;
         timeThreshold = 1;
         //startCleaning = 10;
-        _capture = false;
         lastTime = 0;
 
         w = pix0.getWidth();
@@ -59,8 +58,13 @@ namespace cml
         if ( !find_board( calib0, camMat0 ) || !find_board( calib1, camMat1 ) )
         {
           ofLogWarning() << "did not found the chessboard on any camera";
+          //capture failed
+          capture_time_status = -ofGetElapsedTimef();
           return;
         }
+
+        //capture success
+        capture_time_status = ofGetElapsedTimef();
 
         calibrate( calib0, camMat0, pix0, undistorted0 );
         calibrate( calib1, camMat1, pix1, undistorted1 );
@@ -82,6 +86,8 @@ namespace cml
 
         undistorted0.draw( 0, h );
         undistorted1.draw( w, h );
+
+        render_capture_time_status();
       };
 
       void save_all( string folder )

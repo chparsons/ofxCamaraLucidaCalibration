@@ -54,7 +54,7 @@ namespace cml
 
     private:
 
-      int width, height, chan;
+      int width, height, chan; 
 
       string cam_name, proj_name;
       string cam_calib_file, pattern_settings_file;

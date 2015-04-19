@@ -28,8 +28,6 @@ namespace cml
     timeThreshold = 2;
     lastTime = 0;
 
-    _capture = false;
-
     width = pix.getWidth();
     height = pix.getHeight();
     chan = pix.getNumChannels();
@@ -71,7 +69,16 @@ namespace cml
 
     //check all chessboards are found on captured image
     if ( !update_captured_points(undistorted) )
+    {
+      //capture failed
+      capture_time_status = -ofGetElapsedTimef();
       return;
+    }
+    else 
+    {
+      //capture success
+      capture_time_status = ofGetElapsedTimef();
+    }
 
     imgs.push_back( undistorted );
 
@@ -148,6 +155,8 @@ namespace cml
 
     debug_calib(calib_cam, cam_name, x, y );
     debug_calib(calib_proj, proj_name, x, y+height );
+
+    render_capture_time_status();
   };
 
   void ProjectorCameraCalibration::render_chessboard( int _x, int _y, int brightness )
@@ -442,9 +451,9 @@ namespace cml
 
     if ( printed_points.size() != nimgs )
     {
-      ofLogWarning("cml::ProjectorCameraCalibration") << "find_homographies printed_points.size " << printed_points.size() << " and imgs.size " << imgs.size() << " should be equal";
+      ofLogWarning("cml::ProjectorCameraCalibration") << "find_homographies: printed_points.size " << printed_points.size() << " and imgs.size " << imgs.size() << " should be equal";
       return false;
-    }
+    } 
 
     //(i.e. 2d points projected onto the image plane)
     vector<cv::Point2f> printed_pattern;
@@ -458,7 +467,7 @@ namespace cml
 
       if ( homography.empty() )
       {
-        ofLogError("cml::ProjectorCameraCalibration") << "error: homography not found on image " << ofToString(i);
+        ofLogError("cml::ProjectorCameraCalibration") << "find_homographies: homography not found on image " << ofToString(i);
         return false;
       }
 
@@ -519,6 +528,12 @@ namespace cml
       }
 
       cv::Mat1d homography = homographies[i];
+      if ( homography.empty() )
+      {
+        ofLogError("cml::ProjectorCameraCalibration") << "projected_points_on_board: homography not found on image " << ofToString(i);
+        return false;
+      }
+
       cv::Mat proj_pts_mat; 
       cv::perspectiveTransform(cv::Mat(projected_points[i]), proj_pts_mat, homography);
 

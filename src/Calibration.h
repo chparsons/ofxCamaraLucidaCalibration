@@ -36,6 +36,8 @@ namespace cml
     protected: 
 
       bool _capture;
+      float capture_time_status; //0 idle, -ofGetElapsedTimef() failed, ofGetElapsedTimef() success
+
       float curTime, lastTime;
       float diffThreshold; // maximum amount of movement
       float timeThreshold; // minimum time between snapshots
@@ -46,6 +48,32 @@ namespace cml
       void init_calib( ofxCv::Calibration& calibration, Calibration::Config cfg ); 
       void render_calib( ofxCv::Calibration& calibration, int x, int y=0 );
       void debug_calib( ofxCv::Calibration& calibration, string name, int x, int y=0 ); 
+
+      void render_capture_time_status()
+      {
+        if (capture_time_status == 0) //idle
+          return;
+
+        float duration = 1; //secs
+        float t = ofClamp(duration-(ofGetElapsedTimef()-abs(capture_time_status)),0,duration);
+        if (t <= 0.)
+        {
+          capture_time_status = 0; //idle
+          return;
+        }
+
+        ofFloatColor col;
+        if (capture_time_status < 0) //failed
+          col = ofFloatColor::red;
+        else 
+          col = ofFloatColor::green; //success 
+        col.a = t;
+
+        ofPushStyle();
+        ofSetColor( col );
+        ofRect(0,0,ofGetWidth(),ofGetHeight());
+        ofPopStyle();
+      };
 
       //see ofxCalibration::save
       void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format = "ofxcv" ); 

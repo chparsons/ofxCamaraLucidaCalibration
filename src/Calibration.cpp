@@ -10,6 +10,7 @@ namespace cml
   Calibration::Calibration()
   {
     _capture = false;
+    capture_time_status = 0;
   };
 
   Calibration::~Calibration(){}; 
