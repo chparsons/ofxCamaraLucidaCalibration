@@ -23,7 +23,6 @@ namespace cml
       ~ProjectorCameraCalibration(); 
 
       void init( 
-          ofPixels& pix, 
           string cam_calib_file, 
           string pattern_settings_file,
           string cam_name = "camera", 
@@ -32,7 +31,10 @@ namespace cml
       void update( ofPixels& pix ); 
       bool capture( ofPixels& pix );
       void calibrate();
-      void render( int x, int y );
+      void render( 
+          int x, int y, 
+          int img_x, int img_y, 
+          int img_w, int img_h );
       void render_chessboard( int x = ofGetScreenWidth(), int y = 0, int brightness = 255 );
 
       void save_all( string folder );
@@ -53,8 +55,6 @@ namespace cml
       };
 
     private:
-
-      int width, height, chan; 
 
       string cam_name, proj_name;
       string cam_calib_file, pattern_settings_file;

@@ -13,7 +13,6 @@ namespace cml
   ProjectorCameraCalibration::~ProjectorCameraCalibration(){};
 
   void ProjectorCameraCalibration::init( 
-      ofPixels& pix, 
       string cam_calib_file, 
       string pattern_settings_file,
       string cam_name, 
@@ -26,11 +25,7 @@ namespace cml
 
     diffThreshold = 6.; //2.5;
     timeThreshold = 2;
-    lastTime = 0;
-
-    width = pix.getWidth();
-    height = pix.getHeight();
-    chan = pix.getNumChannels();
+    lastTime = 0; 
 
     if ( !load_settings( pattern_settings_file ) )
       return;
@@ -138,23 +133,23 @@ namespace cml
 
   };
 
-  void ProjectorCameraCalibration::render( int x, int y )
+  void ProjectorCameraCalibration::render( int x, int y, int img_x, int img_y, int img_w, int img_h )
   {
     //ofDrawBitmapStringHighlight("movement: " + ofToString(diffMean), x, y+20, ofColor::cyan, ofColor::black);
     ofDrawBitmapStringHighlight("cam_calib_file: " + cam_calib_file, x, y+20, ofColor::cyan, ofColor::black);
 
     //render_calib(calib_cam, 0);
 
-    float scale = 0.5;
-
     if (imgs.size() > 0)
-      imgs[imgs.size()-1].draw( 0, height, width * scale, height * scale );
+      imgs[imgs.size()-1].draw( img_x, img_y, img_w, img_h );
 
-    render_points( captured_printed_points, 0, height, scale, 2. );
-    render_points( captured_projected_points, 0, height, scale, 2. );
+    float scale = ((float)img_w) / cam_size().width;
 
-    debug_calib(calib_cam, cam_name, x, y );
-    debug_calib(calib_proj, proj_name, x, y+height );
+    render_points( captured_printed_points, img_x, img_y, scale, 2. );
+    render_points( captured_projected_points, img_x, img_y, scale, 2. );
+
+    debug_calib(calib_cam, cam_name, x, y);
+    debug_calib(calib_proj, proj_name, img_x, img_y);
 
     render_capture_time_status();
   };
@@ -162,8 +157,8 @@ namespace cml
   void ProjectorCameraCalibration::render_chessboard( int _x, int _y, int brightness )
   {
 
-    int w = cfg_proj.image_size.width;
-    int h = cfg_proj.image_size.height;
+    int w = proj_size().width;
+    int h = proj_size().height;
 
     ofPushStyle();
     ofSetColor( brightness );
@@ -171,8 +166,8 @@ namespace cml
 
     ofSetColor(0);
     int ps = cfg_proj.pattern_square_size_pixels;
-    int xoff = _x + (cfg_proj.image_size.width/2 - (((cfg_proj.pattern_width+1)*ps)/2));
-    int yoff = _y + (cfg_proj.image_size.height/2 - (((cfg_proj.pattern_height+1)*ps)/2));
+    int xoff = _x + (proj_size().width/2 - (((cfg_proj.pattern_width+1)*ps)/2));
+    int yoff = _y + (proj_size().height/2 - (((cfg_proj.pattern_height+1)*ps)/2));
 
     for ( int y = 0; y <= cfg_proj.pattern_height; y++ ) 
     {
@@ -661,9 +656,9 @@ namespace cml
   {
     ofLogNotice("cml::ProjectorCameraCalibration") << "\t" << "make_projector_pattern";
 
-    float offset_x = (cfg_proj.image_size.width - (cfg_proj.pattern_width-1) * cfg_proj.pattern_square_size_pixels) / 2;
+    float offset_x = (proj_size().width - (cfg_proj.pattern_width-1) * cfg_proj.pattern_square_size_pixels) / 2;
 
-    float offset_y = (cfg_proj.image_size.height - (cfg_proj.pattern_height-1) * cfg_proj.pattern_square_size_pixels) / 2;
+    float offset_y = (proj_size().height - (cfg_proj.pattern_height-1) * cfg_proj.pattern_square_size_pixels) / 2;
 
     int nimgs = imgs.size();
 
@@ -761,9 +756,9 @@ namespace cml
     maxY = std::max_element(corners.begin(), corners.end(), compY)->y;
 
     minX = std::max(minX-offset, 0.f);
-    maxX = std::min(maxX+offset, (float)cfg_proj.image_size.width);
+    maxX = std::min(maxX+offset, (float)proj_size().width);
     minY = std::max(minY-offset, 0.f);
-    maxY = std::min(maxY+offset, (float)cfg_proj.image_size.height);
+    maxY = std::min(maxY+offset, (float)proj_size().height);
     //Make a rectangle
     cv::Rect roi(minX, minY, maxX-minX, maxY-minY);
     //Point a cv::Mat header at it (no allocation is done)
