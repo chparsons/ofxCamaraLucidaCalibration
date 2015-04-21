@@ -117,7 +117,15 @@ namespace cml
         calib0.reset();
         calib1.reset();
       }; 
-
+    
+      void  removeLast()
+      {
+        if(calib0.imagePoints.size() > 0){
+          calib0.imagePoints.pop_back();
+          calib1.imagePoints.pop_back();
+        }
+      };
+    
     private:
 
       int w, h, chan;
