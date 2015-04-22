@@ -86,6 +86,7 @@ namespace cml
 
       //see ofxCalibration::save
       void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format = "ofxcv" ); 
+      void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, float reprojection_error, string format = "ofxcv" ); 
 
       //cv::FileStorage load_settings();
 

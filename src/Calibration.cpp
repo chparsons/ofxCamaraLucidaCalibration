@@ -75,6 +75,11 @@ namespace cml
   //see ofxCalibration::save
   void Calibration::save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format )
   {
+    save_intrinsics( calibration, name, folder, calibration.getReprojectionError(), format );
+  };
+
+  void Calibration::save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, float reprojection_error, string format )
+  {
     if ( ! calibration.isReady() )
     {
       ofLogError("cml::Calibration") << "save_intrinsics for " << name << " failed, because your calibration isn't ready yet!";
@@ -104,7 +109,7 @@ namespace cml
       fs << "sensor_width" << sensorSize.width;
       fs << "sensor_height" << sensorSize.height;
       fs << "distortion_coefficients" << calibration.getDistCoeffs();
-      fs << "reprojection_error" << calibration.getReprojectionError();
+      fs << "reprojection_error" << reprojection_error;
 
       //let's add the undistorted intrinsics
       fs << "undistorted_camera_matrix" << undistorted_cameraMatrix;
@@ -122,7 +127,7 @@ namespace cml
       fs << "sensorSize_width" << sensorSize.width;
       fs << "sensorSize_height" << sensorSize.height;
       fs << "distCoeffs" << calibration.getDistCoeffs();
-      fs << "reprojectionError" << calibration.getReprojectionError();
+      fs << "reprojectionError" << reprojection_error;
 
       //let's add the undistorted intrinsics
       fs << "undistorted_cameraMatrix" << undistorted_cameraMatrix;

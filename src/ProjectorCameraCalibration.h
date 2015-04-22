@@ -61,6 +61,7 @@ namespace cml
 
       ofxCv::Calibration calib_cam, calib_proj;
       ofxCv::Intrinsics proj_distorted_intrinsics;
+      float proj_error;
 
       //settings
       cml::Calibration::Config cfg_proj;

@@ -184,7 +184,7 @@ namespace cml
   void ProjectorCameraCalibration::save_all( string folder )
   {
     //cml::Calibration::save_intrinsics( calib_cam, cam_name ); //already calibrated
-    cml::Calibration::save_intrinsics( calib_proj, proj_name, folder );
+    cml::Calibration::save_intrinsics( calib_proj, proj_name, folder, proj_error );
     save_extrinsics( folder );
   };
 
@@ -358,9 +358,10 @@ namespace cml
     //go...
 
     int flags = CV_CALIB_ZERO_TANGENT_DIST + CV_CALIB_FIX_K1 + CV_CALIB_FIX_K2 + CV_CALIB_FIX_K3;
+		//int flags = 0;
     vector<cv::Mat> rvecs, tvecs;
 
-    double error = cv::calibrateCamera(
+    proj_error = cv::calibrateCamera(
         projected_points3d_on_board, 
         projector_pattern, 
         cfg_proj.image_size,
@@ -374,8 +375,8 @@ namespace cml
       << proj_intrinsics
       << "\n projector distortion: \n"
       << proj_distortion
-      << "\n error int: \n"
-      << error;
+      << "\n error: \n"
+      << proj_error;
 
     //update calib_proj from: proj_intrinsics, proj_distortion
     proj_distorted_intrinsics.setup( proj_intrinsics, cfg_proj.image_size );
