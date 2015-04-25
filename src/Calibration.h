@@ -33,16 +33,19 @@ namespace cml
 
       void toggle_capture(); 
 
+      //see ofxCalibration::save
+      void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format = "ofxcv" ); 
+      void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, float reprojection_error, string format = "ofxcv" );
+
+      bool update_cam( cv::Mat& camMat, ofPixels& pix, ofPixels& previous, ofPixels& diff, float* diffMean );
+
+      float diffThreshold; // maximum amount of movement
+      float curTime, lastTime;  
+      float timeThreshold; // minimum time between snapshots
+
     protected: 
 
       bool _capture;
-
-      float curTime, lastTime;
-      float diffThreshold; // maximum amount of movement
-      float timeThreshold; // minimum time between snapshots
-      //int startCleaning; // start cleaning outliers after this many samples  
-
-      bool update_cam( cv::Mat& camMat, ofPixels& pix, ofPixels& previous, ofPixels& diff, float* diffMean );
 
       void init_calib( ofxCv::Calibration& calibration, Calibration::Config cfg ); 
       void render_calib( ofxCv::Calibration& calibration, int x, int y=0 );
@@ -82,13 +85,7 @@ namespace cml
         ofSetColor( col );
         ofRect(0,0,ofGetWidth(),ofGetHeight());
         ofPopStyle();
-      };
-
-      //see ofxCalibration::save
-      void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format = "ofxcv" ); 
-      void save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, float reprojection_error, string format = "ofxcv" ); 
-
-      //cv::FileStorage load_settings();
+      }; 
 
       void render_mat( cv::Mat& img, int x, int y )
       {

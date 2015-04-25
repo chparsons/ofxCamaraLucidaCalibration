@@ -16,27 +16,35 @@ namespace cml
       StereoCalibration() : Calibration() {};
       ~StereoCalibration(){}; 
 
-      void init( string name0, ofPixels& pix0, string name1, ofPixels& pix1 )
+      void init( 
+          string pattern_settings_file,
+          string name0, ofPixels& pix0, 
+          string name1, ofPixels& pix1,
+          string calib0_file = "", 
+          string calib1_file = "" )
       {
         this->name0 = name0;
         this->name1 = name1;
+        this->calib0_file = calib0_file;
+        this->calib1_file = calib1_file;
 
-        diffThreshold = 6.; //2.5;
+        //cml::Calibration
+        diffThreshold = 6.;
         timeThreshold = 1;
-        //startCleaning = 10;
-        lastTime = 0;
 
         w = pix0.getWidth();
         h = pix0.getHeight();
         chan = pix0.getNumChannels();
 
-        cfg.pattern_width = 7;
-        cfg.pattern_height = 10;
-        cfg.pattern_square_size = 2.5; //cm
-        cfg.pattern_type = CHESSBOARD;
-
+        load_settings(pattern_settings_file);
         init_calib( calib0, cfg );
         init_calib( calib1, cfg );
+
+        if ( !calib0_file.empty() )
+          calib0.load( calib0_file, false ); 
+
+        if ( !calib1_file.empty() )
+          calib1.load( calib1_file, false );
 
         allocate( pix0, pix1 );
       };
@@ -63,8 +71,11 @@ namespace cml
 
         capture_success();
 
-        calibrate( calib0, camMat0, pix0, undistorted0 );
-        calibrate( calib1, camMat1, pix1, undistorted1 );
+        if ( calib0_file.empty() )
+          calibrate( calib0, camMat0, pix0, undistorted0 );
+
+        if ( calib1_file.empty() )
+          calibrate( calib1, camMat1, pix1, undistorted1 );
 
         lastTime = curTime;
       };
@@ -89,10 +100,12 @@ namespace cml
 
       void save_all( string folder )
       {
-        save_intrinsics( name0, folder );
+        save_intrinsics( name0, folder, "ofxcv" );
         save_intrinsics( name0, folder, "aruco" );
-        save_intrinsics( name1, folder );
+
+        save_intrinsics( name1, folder, "ofxcv" );
         save_intrinsics( name1, folder, "aruco" );
+
         save_extrinsics( name0, name1, folder );
         save_extrinsics( name1, name0, folder );
       };
@@ -117,20 +130,23 @@ namespace cml
         calib0.reset();
         calib1.reset();
       }; 
-    
-      void  removeLast()
+
+      void removeLast()
       {
-        if(calib0.imagePoints.size() > 0){
+        if ( calib0.imagePoints.size() > 0 )
+        {
           calib0.imagePoints.pop_back();
           calib1.imagePoints.pop_back();
         }
       };
-    
+
     private:
 
-      int w, h, chan;
+      int w, h, chan; 
 
       ofxCv::Calibration calib0, calib1;
+      string calib0_file, calib1_file;
+
       ofImage undistorted0, undistorted1;
       ofPixels previous0, previous1;
       ofPixels diff0, diff1;
@@ -149,16 +165,7 @@ namespace cml
           return false;
         }
 
-        //cout << "re-calibrating " << name << endl;
-
         calibration.calibrate();
-
-        //if ( calibration.size() > startCleaning ) 
-          //calibration.clean();
-        //calibration.save("calib_"+name+".yml");
-
-        //let users save
-        //save_intrinsics( calibration, name, "aruco" );
 
         if ( calibration.size() > 0 ) 
         {
@@ -244,7 +251,7 @@ namespace cml
       void save_extrinsics( string src_name, ofxCv::Calibration& src_calib, string dst_name, ofxCv::Calibration& dst_calib, string folder )
       {
 
-        //Mat R,T;
+        //cv::Mat R,T;
         //if ( ! src_calib.getTransformation( dst_calib, R, T ) ) 
         //{
           //ofLogWarning("cml::StereoCalibration") << "stereo calibrate failed";
@@ -268,6 +275,24 @@ namespace cml
         fs << "F" << extrinsics.F;
 
         ofLogNotice("cml::StereoCalibration") << "save extrinsics: RT from [" << src_name << "] to [" << dst_name << "] to file " << filename;
+      };
+
+      bool load_settings( string pattern_settings_file )
+      {
+        cv::FileStorage settings( ofToDataPath(pattern_settings_file), cv::FileStorage::READ );
+
+        if ( !settings.isOpened() )
+        {
+          ofLogFatalError() << "could not open pattern settings file: " << ofToDataPath(pattern_settings_file);
+          ofExit();
+          return false;
+        }
+
+        cfg.pattern_width = settings["pattern_width"];;
+        cfg.pattern_height = settings["pattern_height"];
+        cfg.pattern_square_size = settings["pattern_square_size"]; //cm
+        cfg.pattern_type = CHESSBOARD;
+
       };
 
   };

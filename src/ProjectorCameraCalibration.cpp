@@ -23,13 +23,11 @@ namespace cml
     this->cam_calib_file = cam_calib_file;
     this->pattern_settings_file = pattern_settings_file;
 
-    diffThreshold = 6.; //2.5;
+    //cml::Calibration
+    diffThreshold = 6.;
     timeThreshold = 2;
-    lastTime = 0; 
 
-    if ( !load_settings( pattern_settings_file ) )
-      return;
-
+    load_settings(pattern_settings_file);
     init_calib( calib_proj, cfg_proj );
 
     bool absolute = false;
@@ -58,9 +56,15 @@ namespace cml
       //return false;
     //}
 
+    //ofImage undistorted;
+    //ofxCv::imitate(undistorted, pix);
+    //calib_cam.undistort( toCv(pix), toCv(undistorted) );
+    cv::Mat undistorted_mat;
+    cv::Mat cam_distorted_intrinsics = calib_cam.getDistortedIntrinsics().getCameraMatrix();
+    cv::Mat cam_distortion = calib_cam.getDistCoeffs();
+    cv::undistort( toCv(pix), undistorted_mat, cam_distorted_intrinsics, cam_distortion );
     ofImage undistorted;
-    ofxCv::imitate(undistorted, pix);
-    calib_cam.undistort( toCv(pix), toCv(undistorted) );
+    ofxCv::toOf(undistorted_mat, undistorted);
 
     //check all chessboards are found on captured image
     if ( !update_captured_points(undistorted) )
@@ -214,8 +218,12 @@ namespace cml
     imgs.assign( dir.size(), ofImage() );
     for ( int i = 0; i < (int)dir.size(); i++ )
     {
-      imgs[i].loadImage( dir.getPath(i) );
-      update_captured_points( imgs[i] );
+      string path = dir.getPath(i);
+      imgs[i].loadImage( path );
+      if (!update_captured_points( imgs[i] ))
+      {
+        ofLogWarning("cml::ProjectorCameraCalibration") << "\t load_image (" << path << ") printed chessboard pattern not found on image "<< ofToString(i);
+      }
     }
   };
 
@@ -260,7 +268,8 @@ namespace cml
 
     if ( !settings.isOpened() )
     {
-      ofLogError() << "could not open projector pattern settings file: " << ofToDataPath(pattern_settings_file);
+      ofLogFatalError() << "could not open projector pattern settings file: " << ofToDataPath(pattern_settings_file);
+      ofExit();
       return false;
     }
 
@@ -398,7 +407,8 @@ namespace cml
     cv::Mat cam_distorted_intrinsics = calib_cam.getDistortedIntrinsics().getCameraMatrix();
     cv::Mat cam_distortion = calib_cam.getDistCoeffs();
 
-    cv::Mat cam_undistorted_intrinsics = calib_cam.getUndistortedIntrinsics().getCameraMatrix();
+    //cv::Mat cam_undistorted_intrinsics = calib_cam.getUndistortedIntrinsics().getCameraMatrix();
+
     cv::Mat zero_dist (proj_distortion.size(), proj_distortion.type());
     zero_dist = cv::Scalar(0);
 
@@ -413,10 +423,11 @@ namespace cml
         proj_distortion,
 
         //data from cam intrinsics loaded
-        //cam_distorted_intrinsics, 
-        cam_undistorted_intrinsics, 
-        cam_distortion,
-        //zero_dist, 
+        //TODO...
+        cam_distorted_intrinsics, 
+        //cam_undistorted_intrinsics, 
+        //cam_distortion,
+        zero_dist, 
 
         //size
         cfg_proj.image_size,
@@ -429,13 +440,18 @@ namespace cml
 
     extrinsics.error = computeCalibrationError(extrinsics.F, projector_pattern, projected_points);
 
+    //transpose to get proj->camera
+    extrinsics.T *= -1;
+    cv::transpose(extrinsics.R,extrinsics.R);
+
+    //old proj->depth
+    //T = rgb_R * T - rgb_T;
+    //R = rgb_R * R;
+
     ofLogNotice("cml::ProjectorCameraCalibration") << "calibrate projector camera:" 
       << "\n average pixel reprojection error: " << extrinsics.error
       << "\n R: \n" << extrinsics.R
-      << "\n T: \n" << extrinsics.T;
-
-    //T = rgb_R * T - rgb_T;
-    //R = rgb_R * R;
+      << "\n T: \n" << extrinsics.T; 
   };
 
   bool ProjectorCameraCalibration::find_homographies( 

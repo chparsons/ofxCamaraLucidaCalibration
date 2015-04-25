@@ -5,12 +5,13 @@ using namespace ofxCv;
 namespace cml
 { 
 
-  //public:
-
   Calibration::Calibration()
   {
     _capture = false;
     capture_status = 0;
+    diffThreshold = 2.5;
+    timeThreshold = 1;
+    lastTime = 0;
   };
 
   Calibration::~Calibration(){}; 
@@ -20,20 +21,18 @@ namespace cml
     _capture = !_capture;
   };
 
-  //protected: 
-
   bool Calibration::update_cam( cv::Mat& camMat, ofPixels& pix, ofPixels& previous, ofPixels& diff, float* diffMean )
   {
     camMat = toCv(pix);
-    Mat prevMat = toCv(previous);
-    Mat diffMat = toCv(diff);
+    cv::Mat prevMat = toCv(previous);
+    cv::Mat diffMat = toCv(diff);
 
     //cout << "camMat " << camMat.cols << " x " << camMat.rows << endl;
 
     ofxCv::absdiff(prevMat,camMat,diffMat);	
     camMat.copyTo(prevMat);
 
-    *diffMean = ofxCv::mean( Mat( ofxCv::mean(diffMat) ) )[0];
+    *diffMean = ofxCv::mean( cv::Mat( ofxCv::mean(diffMat) ) )[0];
 
     return *diffMean < diffThreshold;
   };
@@ -139,14 +138,6 @@ namespace cml
 
     ofLogNotice("cml::Calibration") << "save intrinsics calib to file " << filename << ", format: " << format;
   }; 
-
-  //cv::FileStorage Calibration::load_settings()
-  //{
-    //cv::FileStorage sett(ofToDataPath("settings.yml"), cv::FileStorage::READ);
-    //if ( ! sett.isOpened() )
-      //throw "calib setting not loaded";
-    //return sett;
-  //};
 
 };
 
