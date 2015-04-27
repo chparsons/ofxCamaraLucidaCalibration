@@ -39,6 +39,8 @@ namespace cml
 
       bool update_cam( cv::Mat& camMat, ofPixels& pix, ofPixels& previous, ofPixels& diff, float* diffMean );
 
+      void undistort( ofxCv::Calibration& calib, ofPixels& pix, ofImage& undistorted );
+
       float diffThreshold; // maximum amount of movement
       float curTime, lastTime;  
       float timeThreshold; // minimum time between snapshots
@@ -50,6 +52,7 @@ namespace cml
       void init_calib( ofxCv::Calibration& calibration, Calibration::Config cfg ); 
       void render_calib( ofxCv::Calibration& calibration, int x, int y=0 );
       void debug_calib( ofxCv::Calibration& calibration, string name, int x, int y=0 ); 
+      void debug_reproj_errors_per_view( ofxCv::Calibration& calibration, int x, int y=0 ); 
 
       void capture_failed()
       {
@@ -94,13 +97,13 @@ namespace cml
         _img.draw(x,y);
       };
 
-      void render_points( vector<cv::Point2f>& points, int x, int y, float scale, float size = 5. )
+      template <class T>
+      void render_points( vector<T>& points, int x, int y, float scalex, float scaley, float size = 5. )
       {
         ofPushStyle();
         ofNoFill();
-        ofSetColor( ofColor::red );
         for ( int i = 0; i < points.size(); i++ )
-          ofCircle( x + (points[i].x * scale), y + (points[i].y * scale), size );
+          ofCircle( x + (points[i].x * scalex), y + (points[i].y * scaley), size );
         ofPopStyle();
       };
 

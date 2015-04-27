@@ -31,11 +31,13 @@ namespace cml
       void update( ofPixels& pix ); 
       bool capture( ofPixels& pix );
       void calibrate();
-      void render( 
-          int x, int y, 
-          int img_x, int img_y, 
-          int img_w, int img_h );
-      void render_chessboard( int x = ofGetScreenWidth(), int y = 0, int brightness = 255 );
+
+      void render( int x, int y );
+      void render_capture( int x, int y, int w, int h );
+
+      void render_chessboard( 
+          int x = ofGetScreenWidth(), int y = 0, 
+          int brightness = 255 );
 
       void save_all( string folder );
       void save_images( string folder );
@@ -71,8 +73,18 @@ namespace cml
       float offset_x_3x6, offset_y_3x6;
 
       vector<ofImage> imgs;
+
+      //captured image test
       vector<cv::Point2f> captured_printed_points;
       vector<cv::Point2f> captured_projected_points;
+
+      //calibration process
+      vector<cv::Mat1d> homographies;
+      vector< vector<cv::Point2f> > printed_points; 
+      vector< vector<cv::Point2f> > projector_pattern;
+      vector< vector<cv::Point2f> > projected_points;
+      vector< vector<cv::Point3f> > projected_points3d_on_board;
+
       int projector_pattern_size();
 
       //calib output
@@ -85,7 +97,7 @@ namespace cml
       //float diffMean; 
       //void allocate( ofPixels& pix ); 
 
-      bool update_captured_points( ofImage& img );
+      bool update_captured_points( ofImage& img, int img_num = -1 );
       void save_extrinsics( string folder );
       bool load_settings( string pattern_settings_file );
 
@@ -116,13 +128,15 @@ namespace cml
 
       void find_printed_chessboards(
           const cv::Mat& img, 
-          vector<cv::Point2f>& corners);
+          vector<cv::Point2f>& corners,
+          int img_num = -1 );
 
       void find_projected_chessboards(
           const cv::Mat& img, 
-          vector<cv::Point2f>& corners);
+          vector<cv::Point2f>& corners,
+          int img_num = -1 );
 
-      bool projected_points_on_board( 
+      bool transform_projected_points_on_board( 
           vector< vector<cv::Point2f> >& projected_points, 
           vector< cv::Mat1d >& homographies, 
           vector< vector<cv::Point3f> >& projected_points3d_on_board ); 

@@ -29,7 +29,7 @@ namespace cml
         this->calib1_file = calib1_file;
 
         //cml::Calibration
-        diffThreshold = 6.;
+        diffThreshold = 6.; //for manual capture
         timeThreshold = 1;
 
         w = pix0.getWidth();
@@ -40,11 +40,8 @@ namespace cml
         init_calib( calib0, cfg );
         init_calib( calib1, cfg );
 
-        if ( !calib0_file.empty() )
-          calib0.load( calib0_file, false ); 
-
-        if ( !calib1_file.empty() )
-          calib1.load( calib1_file, false );
+        preload_calibration( calib0, calib0_file, name0 );
+        preload_calibration( calib1, calib1_file, name1 );
 
         allocate( pix0, pix1 );
       };
@@ -69,15 +66,28 @@ namespace cml
           return;
         }
 
-        capture_success();
+        //double check
+        if ( !calib0.add( camMat0 )
+            || !calib1.add( camMat1 ) )
+        {
+          ofLogError() << "!@#$%ˆ&*";
+          capture_failed();
+          return;
+        }
 
+        //only calibrate if it was not preloaded
         if ( calib0_file.empty() )
-          calibrate( calib0, camMat0, pix0, undistorted0 );
+          calib0.calibrate();
 
         if ( calib1_file.empty() )
-          calibrate( calib1, camMat1, pix1, undistorted1 );
+          calib1.calibrate();
+
+        undistort( calib0, pix0, undistorted0 );
+        undistort( calib1, pix1, undistorted1 );
 
         lastTime = curTime;
+
+        capture_success();
       };
 
       void render()
@@ -94,6 +104,12 @@ namespace cml
 
         debug_calib(calib0, name0, 0);
         debug_calib(calib1, name1, w);
+
+        //we are not calibrating a camera if it has a preloaded calibration, so we wont have reproj errors per view
+        if ( calib0_file.empty() ) 
+          debug_reproj_errors_per_view( calib0, 0, 100 );
+        if ( calib1_file.empty() ) 
+          debug_reproj_errors_per_view( calib1, w, 100 );
 
         render_capture_status();
       };
@@ -133,7 +149,7 @@ namespace cml
 
       void removeLast()
       {
-        if ( calib0.imagePoints.size() > 0 )
+        if (calib0.imagePoints.size() > 0)
         {
           calib0.imagePoints.pop_back();
           calib1.imagePoints.pop_back();
@@ -147,6 +163,7 @@ namespace cml
       ofxCv::Calibration calib0, calib1;
       string calib0_file, calib1_file;
 
+      string name0, name1;
       ofImage undistorted0, undistorted1;
       ofPixels previous0, previous1;
       ofPixels diff0, diff1;
@@ -156,23 +173,6 @@ namespace cml
 
       cml::Calibration::Config cfg;
       cml::Calibration::Extrinsics extrinsics;
-
-      bool calibrate( ofxCv::Calibration& calibration, cv::Mat& camMat, ofPixels& pix, ofImage& undistorted )
-      {
-        if ( !calibration.add( camMat ) )
-        {
-          ofLogError() << "update calib: this should not happen, we already found the chessboard !@#$%ˆ&*:)";
-          return false;
-        }
-
-        calibration.calibrate();
-
-        if ( calibration.size() > 0 ) 
-        {
-          calibration.undistort( toCv(pix), toCv(undistorted) );
-          undistorted.update();
-        }
-      };
 
       //see ofxCv::getTransformation
       bool calibrate_extrinsics( ofxCv::Calibration& src_calib, ofxCv::Calibration& dst_calib, cml::Calibration::Extrinsics& extrinsics ) 
@@ -228,8 +228,6 @@ namespace cml
         return calibration.findBoard(camMat, pointBuf);
       };
 
-      string name0, name1;
-
       void allocate( ofPixels& pix0, ofPixels& pix1 )
       {
         //pix0.allocate( w, h, chan );
@@ -251,13 +249,6 @@ namespace cml
       void save_extrinsics( string src_name, ofxCv::Calibration& src_calib, string dst_name, ofxCv::Calibration& dst_calib, string folder )
       {
 
-        //cv::Mat R,T;
-        //if ( ! src_calib.getTransformation( dst_calib, R, T ) ) 
-        //{
-          //ofLogWarning("cml::StereoCalibration") << "stereo calibrate failed";
-          //return;
-        //}
-
         if ( !calibrate_extrinsics( src_calib, dst_calib, extrinsics ) ) 
         {
           ofLogWarning("cml::StereoCalibration") << "calibrate extrinsics failed";
@@ -275,6 +266,18 @@ namespace cml
         fs << "F" << extrinsics.F;
 
         ofLogNotice("cml::StereoCalibration") << "save extrinsics: RT from [" << src_name << "] to [" << dst_name << "] to file " << filename;
+      };
+
+      void preload_calibration( ofxCv::Calibration& calib, string calib_file, string name )
+      {
+        if ( calib_file.empty() )
+          return; 
+
+        calib.load( calib_file, false ); 
+
+        ofLogNotice("cml::StereoCalibration")
+          << "preloaded [" << name 
+          << "] calibration file " << calib_file;
       };
 
       bool load_settings( string pattern_settings_file )

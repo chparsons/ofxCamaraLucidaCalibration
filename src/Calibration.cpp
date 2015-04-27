@@ -10,7 +10,7 @@ namespace cml
     _capture = false;
     capture_status = 0;
     diffThreshold = 2.5;
-    timeThreshold = 1;
+    timeThreshold = 3;
     lastTime = 0;
   };
 
@@ -19,6 +19,24 @@ namespace cml
   void Calibration::toggle_capture()
   {
     _capture = !_capture;
+  };
+
+  void Calibration::undistort( ofxCv::Calibration& calib, ofPixels& pix, ofImage& undistorted )
+  {
+    if ( !calib.isReady() )
+      return;
+
+    calib.undistort( toCv(pix), toCv(undistorted) );
+    undistorted.update();
+
+    //cv::Mat undistorted_mat;
+    //cv::Mat distorted_intrinsics = calib.getDistortedIntrinsics().getCameraMatrix();
+    //cv::Mat distortion = calib.getDistCoeffs();
+    //cv::undistort( toCv(pix), undistorted_mat, distorted_intrinsics, distortion );
+    //ofImage undistorted;
+    //ofxCv::imitate(undistorted, pix);
+    //toOf(undistorted_mat, undistorted);
+    //undistorted.update();
   };
 
   bool Calibration::update_cam( cv::Mat& camMat, ofPixels& pix, ofPixels& previous, ofPixels& diff, float* diffMean )
@@ -64,12 +82,15 @@ namespace cml
     ofDrawBitmapStringHighlight( intrinsics.str(), x, y+60, ofColor::yellow, ofColor::black );
 
     ofDrawBitmapStringHighlight( "reproj error: " + ofToString(calibration.getReprojectionError()) + " from " + ofToString(calibration.size()), x, y+80, ofColor::magenta, ofColor::white );
+  }; 
 
+  void Calibration::debug_reproj_errors_per_view( ofxCv::Calibration& calibration, int x, int y )
+  {
     for ( int i = 0; i < calibration.size(); i++ )
     {
-      ofDrawBitmapStringHighlight(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, y+100 + 16 * i, ofColor::magenta, ofColor::white);
+      ofDrawBitmapStringHighlight(ofToString(i) + ": " + ofToString(calibration.getReprojectionError(i)), x, y + 16 * i, ofColor::magenta, ofColor::white);
     }
-  }; 
+  };
 
   //see ofxCalibration::save
   void Calibration::save_intrinsics( ofxCv::Calibration& calibration, string name, string folder, string format )
