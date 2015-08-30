@@ -192,7 +192,7 @@ namespace cml
     ofLogNotice() << "save " << imgs.size() << " images into " << folder;
     ofDirectory::removeDirectory( folder, true, true );
     for ( int i = 0; i < imgs.size(); i++ )
-      imgs[i].saveImage( folder + "/" + proj_name + "_" + cam_name + "_" + ofToString(i) + ".jpg" );
+      imgs[i].saveImage( folder + "/" + proj_name + "_" + cam_name + "_" + ofToString(i) + ".png" );
   };
 
   void ProjectorCameraCalibration::load_images( string folder )
@@ -440,10 +440,10 @@ namespace cml
         proj_distortion,
 
         //data from cam intrinsics loaded
-        //cam_distorted_intrinsics, 
-        cam_undistorted_intrinsics, 
-        //cam_distortion,
-        zero_dist, 
+        cam_distorted_intrinsics, 
+        //cam_undistorted_intrinsics, 
+        cam_distortion,
+        //zero_dist, 
 
         //size (not used)
         cfg_proj.image_size,
